@@ -4,9 +4,13 @@ import { runInNewContext } from "node:vm";
 
 // Execute the shipped QML JavaScript methods, not a second implementation.
 // This checks request behavior, not QML parsing, bindings or native rendering.
+// The VM cannot parse QML type assertions; the native smoke suite checks that interface.
 const qml = readFileSync(new URL("Panel.qml", import.meta.url), "utf8");
 const methods =
-  qml.match(/^  function \w+\([^)]*\) \{(?:[^\n]*\}\n|[\s\S]*?^  \}\n)/gm)?.join("\n") ?? "";
+  qml
+    .match(/^  function \w+\([^)]*\) \{(?:[^\n]*\}\n|[\s\S]*?^  \}\n)/gm)
+    ?.join("\n")
+    .replace(/ as GameResult\b/g, "") ?? "";
 if (!methods) throw new Error("Panel methods unavailable");
 const modelSource = readFileSync(new URL("Model.js", import.meta.url), "utf8");
 const Model = runInNewContext(
@@ -17,7 +21,8 @@ const Store = runInNewContext(
     "\n({empty, read, encode, toggle, remember, put, get, savedGames, mergeLoaded})",
 );
 const Countries = runInNewContext(
-  readFileSync(new URL("Countries.js", import.meta.url), "utf8") + "\n({supported, filter, label})",
+  readFileSync(new URL("Countries.js", import.meta.url), "utf8") +
+    "\n({supported, filter, label})",
 );
 const response = (id: number, game = "steam:620") =>
   JSON.stringify({
@@ -302,7 +307,9 @@ describe("Omarchy panel request methods", () => {
     const { state, requests } = harness();
     state.search();
     const id = state.serial;
-    const callback = qml.match(/id: deadline\s+interval: 12000\s+onTriggered: \{([^\n]+)\}/)?.[1];
+    const callback = qml.match(
+      /id: deadline\s+interval: 12000\s+onTriggered: \{([^\n]+)\}/,
+    )?.[1];
     if (!callback) throw new Error("Request timeout callback unavailable");
     runInNewContext(callback, state);
     requests[0].finish(200, response(id));

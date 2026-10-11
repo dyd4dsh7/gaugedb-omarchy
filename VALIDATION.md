@@ -18,24 +18,44 @@ Official Omarchy Quattro shell source:
 `e71a816e9032f040225e086c7256f73e8080ae45`.
 The public plugin was mounted read-only and state paths were disposable.
 
-Qt qmllint resolved Qt/Quickshell/Omarchy imports and reported no syntax/import
-errors. It exited nonzero with 131 warnings: 83 unqualified accesses, 47 missing
-properties (including dynamic Loader items and theme objects), and one renamed-type
-warning. This is not a clean lint pass; warnings remain for native-host review.
+### QML warning fixes — version 0.2.1
 
-Quickshell under headless Weston reported `Configuration Loaded` without the
-PanelWindow backend failure seen in the offscreen-only attempt. It stayed running
-until the 15-second test timeout. Warnings included Quickshell's import scanner,
-missing Hyprland signature/`hyprctl`, inherited window deprecations and software
-rendering infrastructure. No full Omarchy desktop or actual panel interaction
-was exercised. This is a limited component-loading smoke check, not visual QA.
+All production QML and the native smoke harness pass full `qmllint` with zero
+warnings and exit status 0, using the real Qt, Quickshell and Omarchy imports.
+The repeatable runner uses `--max-warnings 0` and machine-readable diagnostics.
+No warning category is disabled. The previous 131 warnings were resolved with
+bound component contexts, typed Loader/result-delegate interfaces, an explicitly
+qualified host UI types, block-scoped JavaScript declarations and dynamic adapters for the host's QtObject role groups.
+The role adapters retain the live Omarchy objects; the native test confirms their values.
+
+The 37 JavaScript tests / 169 assertions still pass. The extracted-method VM
+strips only QML's `as GameResult` type assertion syntax; the assertion and delegate
+interface are additionally exercised by the real QML engine below.
+
+### Actual QML-engine checks
+
+`scripts/native-smoke.sh` copies only public runtime files into a temporary
+Quickshell configuration and uses isolated temporary state. Four fresh processes
+under headless Weston pass:
+
+- Native delegate creation, required modelData/index, focus restoration, valid/invalid country selection, country filter/empty bindings and the accepted handler.
+- Atomic state writes for a favourite and country, verified by reading the actual file.
+- A fresh process restores that favourite and country from disk.
+- A corrupt file disables writes and stays byte-for-byte unchanged after an attempted favourite change.
+- Actual Qt HTTP requests for public details, search, NZ deals and comparison return decoded game data without offline recovery.
+
+The runner fails on assertion errors, missing pass markers, runtime JavaScript
+errors, missing required properties and plugin binding errors. Expected official
+shell warnings from missing Hyprland, import scanning, inherited deprecations and
+headless teardown remain; these are not a clean full-shell runtime claim.
 
 ## Still unverified
 
 Actual Hyprland install/enable/summon/hide/disable/remove lifecycle, shell restart,
 keyboard and accessibility, country dropdown interaction, desktop and 390px
-output in both themes, real Qt HTTP/image loading, browser handoffs, storage
-restart persistence and real filesystem failure/recovery paths.
+output in both themes, Steam CDN image loading, browser handoffs and real permission-denied filesystem
+failures. Native state creation, persistence across processes and corrupt-file
+preservation are now verified; shell restart is still distinct.
 
 The JavaScript tests cover many corresponding failure modes using mocks; they do
 not replace these native checks. No mock screenshot is offered as a native preview.

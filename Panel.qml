@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as Controls
@@ -5,7 +7,6 @@ import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Commons as Commons
-import qs.Ui
 import qs.Ui as Ui
 import "Model.js" as Model
 import "Store.js" as Store
@@ -50,8 +51,12 @@ Ui.Panel {
   property bool showMoreActions: false
   readonly property bool showingDetails: mode === "details" || mode === "compare"
   readonly property string stateDirectory: (Quickshell.env("XDG_STATE_HOME").charAt(0) === "/" ? Quickshell.env("XDG_STATE_HOME") : Quickshell.env("HOME") + "/.local/state") + "/gaugedb-omarchy"
-  readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
-  readonly property color foreground: Commons.Color.popups.text
+  readonly property string fontFamily: root.hostBar ? root.hostBar.fontFamily : root.fontRoles.family
+  // Omarchy's grouped roles are QtObject-typed; their members are dynamic host contracts.
+  readonly property var hostBar: root.bar
+  readonly property var fontRoles: Style.font
+  readonly property var popupRoles: Commons.Color.popups
+  readonly property color foreground: root.popupRoles.text
 
   function cancel() {
     if (busy) { message = "Request cancelled."; canRetry = true }
@@ -59,18 +64,18 @@ Ui.Panel {
     deadline.stop()
     artworkDeadline.stop()
     artworkQueue = []
-    var oldArtwork = artworkPending
+    let oldArtwork = artworkPending
     artworkPending = null
     if (oldArtwork) oldArtwork.abort()
-    var previous = pending
+    let previous = pending
     pending = null
     if (previous) previous.abort()
     busy = false
   }
   function close() { countryPopup.close(); cancel(); root.controller.hide() }
   function switchPanel(direction) {
-    if (root.bar && typeof root.bar.switchPanelFrom === "function")
-      return root.bar.switchPanelFrom(root.hostWidget || root, direction)
+    if (root.hostBar && typeof root.hostBar.switchPanelFrom === "function")
+      return root.hostBar.switchPanelFrom(root.hostWidget || root, direction)
     return false
   }
   function call(name, args) {
@@ -81,14 +86,14 @@ Ui.Panel {
     showProvenance = false
     showMoreActions = false
     offline = false
-    var id = serial
-    var body
+    let id = serial
+    let body
     try { body = Model.request(name, args, id) }
     catch (error) { message = error.message; return }
     requestBody = body
     busy = true
     message = name === "find_deals" ? "Loading regional deals…" : name === "get_game" ? "Loading game…" : "Searching games…"
-    var xhr = new XMLHttpRequest()
+    let xhr = new XMLHttpRequest()
     pending = xhr
     xhr.onreadystatechange = function() {
       if (xhr.readyState !== XMLHttpRequest.DONE || id !== root.serial || root.pending !== xhr) return
@@ -102,8 +107,8 @@ Ui.Panel {
         return
       }
       try {
-        var requestArgs = JSON.parse(body).params.arguments
-        var result = Model.decode(xhr.responseText, id, { gameId: requestArgs.id, ids: requestArgs.ids, country: requestArgs.country })
+        let requestArgs = JSON.parse(body).params.arguments
+        let result = Model.decode(xhr.responseText, id, { gameId: requestArgs.id, ids: requestArgs.ids, country: requestArgs.country })
         root.games = result.games
         root.coverage = result.coverage
         root.message = result.games.length ? (result.missingIds && result.missingIds.length ? "Some selected games have no saved data." : "") : "No saved results for this request."
@@ -132,10 +137,10 @@ Ui.Panel {
   }
   function fetchPresentation() {
     if (!root.opened || artworkPending || !artworkQueue.length) return
-    var gameId = artworkQueue[0]
+    let gameId = artworkQueue[0]
     artworkQueue = artworkQueue.slice(1)
-    var generation = serial
-    var xhr = new XMLHttpRequest()
+    let generation = serial
+    let xhr = new XMLHttpRequest()
     artworkPending = xhr
     xhr.onreadystatechange = function() {
       if (xhr.readyState !== XMLHttpRequest.DONE || generation !== root.serial || root.artworkPending !== xhr) return
@@ -144,10 +149,10 @@ Ui.Panel {
       if (xhr.status === 429) { root.artworkQueue = []; return }
       if (xhr.status === 200) {
         try {
-          var item = Model.decodePresentation(xhr.responseText, gameId)
-          var next = Object.assign({}, root.presentation)
+          let item = Model.decodePresentation(xhr.responseText, gameId)
+          let next = Object.assign({}, root.presentation)
           next[gameId] = item
-          var keys = Object.keys(next)
+          let keys = Object.keys(next)
           while (keys.length > 30) delete next[keys.shift()]
           root.presentation = next
         } catch (error) { /* Optional artwork never blocks saved game data. */ }
@@ -182,7 +187,7 @@ Ui.Panel {
     scroll.contentY = 0
   }
   function back() {
-    var previousId = selectedId
+    let previousId = selectedId
     cancel()
     mode = listMode
     games = listGames
@@ -199,8 +204,8 @@ Ui.Panel {
     scroll.contentY = 0
     if (!offline) enrich(games)
     Qt.callLater(function() {
-      for (var i = 0; i < results.count; i++) {
-        var item = results.itemAt(i)
+      for (let i = 0; i < results.count; i++) {
+        let item = results.itemAt(i) as GameResult
         if (item && item.modelData.id === previousId) { item.focusResult(); return }
       }
       if (root.mode === "search") query.forceActiveFocus(); else if (root.mode === "saved") savedTab.forceActiveFocus(); else dealsTab.forceActiveFocus()
@@ -246,7 +251,7 @@ Ui.Panel {
   }
   function loadState(text) {
     try {
-      var loaded = Store.read(text, Model, Countries)
+      let loaded = Store.read(text, Model, Countries)
       // Preserve changes made while the asynchronous disk read was finishing.
       localData = storageDirty ? Store.mergeLoaded(loaded, localData) : loaded
       if (localData.country && Countries.supported(localData.country) && countryCode !== localData.country) { countryCode = localData.country; countryChanged() }
@@ -300,7 +305,7 @@ Ui.Panel {
     scroll.contentY = 0
   }
   function recover(reason) {
-    var cached = requestBody ? Store.get(localData, requestBody, Date.now()) : null
+    let cached = requestBody ? Store.get(localData, requestBody, Date.now()) : null
     if (!cached) { message = reason; return }
     games = cached.result.games
     coverage = cached.result.coverage
@@ -310,14 +315,14 @@ Ui.Panel {
     // Cache recovery never starts additional network requests.
   }
   function reveal(item) {
-    var top = item.mapToItem(content, 0, 0).y
+    let top = item.mapToItem(content, 0, 0).y
     if (top < scroll.contentY) scroll.contentY = top
     else if (top + item.height > scroll.contentY + scroll.height)
       scroll.contentY = Math.max(0, top + item.height - scroll.height)
   }
   onOpenedChanged: { if (!opened) cancel(); else if (games.length && !offline) enrich(games) }
   onSettingsChanged: {
-    var code = String(root.setting("country", "NZ")).trim().toUpperCase()
+    let code = String(root.setting("country", "NZ")).trim().toUpperCase()
     if (storageReady && Countries.supported(code) && code !== countryCode) root.setCountry(code)
   }
   Component.onDestruction: cancel()
@@ -354,7 +359,7 @@ Ui.Panel {
     id: artworkDeadline
     interval: 8000
     onTriggered: {
-      var previous = root.artworkPending
+      let previous = root.artworkPending
       root.artworkPending = null
       if (previous) previous.abort()
       root.fetchPresentation()
@@ -373,7 +378,7 @@ Ui.Panel {
     Label {
       anchors.fill: parent
       text: picture.status === Image.Loading ? "Loading artwork…" : "Artwork unavailable"
-      font.pixelSize: Math.max(12, Style.font.caption)
+      font.pixelSize: Math.max(12, root.fontRoles.caption)
       horizontalAlignment: Text.AlignHCenter
       verticalAlignment: Text.AlignVCenter
       visible: picture.status !== Image.Ready
@@ -390,10 +395,17 @@ Ui.Panel {
     }
   }
 
+  component GameResult: Item {
+    required property var modelData
+    required property int index
+    required property Item focusTarget
+    function focusResult() { focusTarget.forceActiveFocus() }
+  }
+
   component Label: Text {
     color: root.foreground
     font.family: root.fontFamily
-    font.pixelSize: Math.max(13, Style.font.body)
+    font.pixelSize: Math.max(13, root.fontRoles.body)
     textFormat: Text.PlainText
     wrapMode: Text.WordWrap
   }
@@ -402,11 +414,11 @@ Ui.Panel {
     property bool quiet: false
     property bool emphasized: false
     palette.button: Commons.Color.background
-    palette.buttonText: Commons.Color.popups.text
+    palette.buttonText: root.popupRoles.text
     palette.highlight: Commons.Color.accent
     palette.highlightedText: Commons.Color.background
     font.family: root.fontFamily
-    font.pixelSize: Math.max(13, Style.font.body)
+    font.pixelSize: Math.max(13, root.fontRoles.body)
     font.bold: checked || emphasized
     implicitHeight: Math.max(44, contentItem.implicitHeight + Style.space(16))
     leftPadding: Style.space(12)
@@ -419,7 +431,7 @@ Ui.Panel {
         : action.checked || action.emphasized ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.12)
         : action.hovered ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.07) : "transparent"
       border.width: action.activeFocus ? 2 : action.quiet ? 0 : 1
-      border.color: action.activeFocus ? Commons.Color.accent : Commons.Color.popups.border
+      border.color: action.activeFocus ? Commons.Color.accent : root.popupRoles.border
     }
     contentItem: Label {
       text: action.text
@@ -437,12 +449,12 @@ Ui.Panel {
     property real surfaceRadius: Style.cornerRadius
     property var escapeAction: function() { root.close() }
     palette.base: Commons.Color.background
-    palette.text: Commons.Color.popups.text
+    palette.text: root.popupRoles.text
     palette.highlight: Commons.Color.accent
     palette.highlightedText: Commons.Color.background
-    palette.placeholderText: Commons.Color.popups.text
+    palette.placeholderText: root.popupRoles.text
     font.family: root.fontFamily
-    font.pixelSize: Math.max(14, Style.font.subtitle)
+    font.pixelSize: Math.max(14, root.fontRoles.subtitle)
     implicitHeight: 44
     selectByMouse: true
     leftPadding: Style.space(12)
@@ -451,13 +463,13 @@ Ui.Panel {
       radius: field.surfaceRadius
       color: Commons.Color.background
       border.width: field.activeFocus ? 2 : 1
-      border.color: field.activeFocus ? Commons.Color.accent : Commons.Color.popups.border
+      border.color: field.activeFocus ? Commons.Color.accent : root.popupRoles.border
     }
     onActiveFocusChanged: if (activeFocus && scrollIntoView) root.reveal(this)
     Keys.onEscapePressed: field.escapeAction()
   }
 
-  KeyboardPanel {
+  Ui.KeyboardPanel {
     id: panel
     anchorItem: root.anchorItem
     owner: root.hostWidget || root
@@ -491,16 +503,17 @@ Ui.Panel {
         }
         onClosed: { root.choosingCountry = false; if (root.opened) storeTrigger.forceActiveFocus() }
         background: Rectangle {
-          color: Commons.Color.popups.background
+          color: root.popupRoles.background
           radius: Style.cornerRadius
           border.width: 1
-          border.color: Commons.Color.popups.border
+          border.color: root.popupRoles.border
         }
         contentItem: Column {
           id: countryPickerContent
           spacing: Style.space(8)
           Field {
             id: countrySearch
+            objectName: "gaugedb-country-search"
             width: parent.width
             placeholderText: "Search countries or codes"
             maximumLength: 80
@@ -514,6 +527,7 @@ Ui.Panel {
           }
           ListView {
             id: countryChoices
+            objectName: "gaugedb-country-list"
             width: parent.width
             height: Math.min(Math.max(1, count) * 44, Math.max(44, Math.min(Style.space(264), viewport.height - countrySearch.height - countryPickerContent.spacing - countryPopup.padding * 2 - Style.space(16))))
             model: Countries.filter(countrySearch.text)
@@ -547,7 +561,7 @@ Ui.Panel {
               contentItem: RowLayout {
                 spacing: Style.space(12)
                 Label { Layout.fillWidth: true; text: countryChoice.modelData.name }
-                Label { text: countryChoice.modelData.code; font.pixelSize: Math.max(12, Style.font.caption) }
+                Label { text: countryChoice.modelData.code; font.pixelSize: Math.max(12, root.fontRoles.caption) }
                 Label { text: countryChoice.modelData.code === root.countryCode ? "✓" : ""; Layout.preferredWidth: Style.space(16) }
               }
             }
@@ -578,7 +592,7 @@ Ui.Panel {
                 width: Math.min(Style.space(144), parent.width)
                 height: parent.height
                 anchors.verticalCenter: parent.verticalCenter
-                source: Qt.resolvedUrl((Commons.Color.popups.background.r * 0.299 + Commons.Color.popups.background.g * 0.587 + Commons.Color.popups.background.b * 0.114) > 0.5 ? "assets/logo-light.svg" : "assets/logo.svg")
+                source: Qt.resolvedUrl((root.popupRoles.background.r * 0.299 + root.popupRoles.background.g * 0.587 + root.popupRoles.background.b * 0.114) > 0.5 ? "assets/logo-light.svg" : "assets/logo.svg")
                 fillMode: Image.PreserveAspectFit
                 horizontalAlignment: Image.AlignLeft
                 Accessible.name: "GaugeDB"
@@ -592,8 +606,8 @@ Ui.Panel {
               onClicked: countryPopup.opened ? countryPopup.close() : countryPopup.open()
             }
           }
-          Label { width: parent.width; text: root.storageMessage; visible: text !== ""; font.pixelSize: Math.max(12, Style.font.caption) }
-          PanelSeparator { foreground: root.foreground }
+          Label { width: parent.width; text: root.storageMessage; visible: text !== ""; font.pixelSize: Math.max(12, root.fontRoles.caption) }
+          Ui.PanelSeparator { foreground: root.foreground }
           Row {
             width: parent.width
             visible: !root.showingDetails
@@ -655,7 +669,7 @@ Ui.Panel {
               Accessible.name: "Game title"
               onAccepted: root.search()
               onTextEdited: root.queryChanged()
-              Keys.onDownPressed: { var first = results.itemAt(0); if (first) first.focusResult() }
+              Keys.onDownPressed: { let first = results.itemAt(0) as GameResult; if (first) first.focusResult() }
             }
             Action {
               text: "Search"
@@ -677,9 +691,9 @@ Ui.Panel {
             Label {
               Layout.fillWidth: true
               text: root.mode === "deals" ? "Regional deals" : root.mode === "saved" ? (root.savedSection === "recent" ? "Recent games" : "Favourites") : "Search results"
-              font.pixelSize: Math.max(12, Style.font.caption)
+              font.pixelSize: Math.max(12, root.fontRoles.caption)
             }
-            Label { text: String(root.games.length); font.pixelSize: Math.max(12, Style.font.caption) }
+            Label { text: String(root.games.length); font.pixelSize: Math.max(12, root.fontRoles.caption) }
           }
           Label { width: parent.width; text: root.message; visible: text !== ""; Accessible.role: Accessible.StaticText }
           Action { text: "Retry"; visible: !root.busy && root.canRetry; onClicked: root.retry() }
@@ -691,12 +705,11 @@ Ui.Panel {
             rowSpacing: Style.space(20)
           Repeater {
             id: results
+            objectName: "gaugedb-results"
             model: root.games
-            delegate: Item {
+            delegate: GameResult {
               id: result
-              required property var modelData
-              required property int index
-              function focusResult() { resultButton.forceActiveFocus() }
+              focusTarget: resultButton
               readonly property var priceData: Model.priceView(modelData)
               readonly property var presentationData: root.presentation[modelData.id] || ({image: "", detail: ""})
               Layout.fillWidth: true
@@ -711,11 +724,11 @@ Ui.Panel {
                 Accessible.name: result.modelData.name + ", view details"
                 onClicked: root.details(result.modelData.id)
                 Keys.onDownPressed: {
-                  var next = results.itemAt(result.index + 1)
+                  let next = results.itemAt(result.index + 1) as GameResult
                   if (next) next.focusResult()
                 }
                 Keys.onUpPressed: {
-                  var previous = results.itemAt(result.index - 1)
+                  let previous = results.itemAt(result.index - 1) as GameResult
                   if (previous) previous.focusResult()
                   else if (root.mode === "search") query.forceActiveFocus()
                   else if (root.mode === "saved") savedTab.forceActiveFocus()
@@ -732,7 +745,7 @@ Ui.Panel {
                   Column {
                     Layout.fillWidth: true
                     spacing: Style.space(4)
-                    Label { width: parent.width; text: result.modelData.name; font.pixelSize: Math.max(15, Style.font.title); font.bold: true }
+                    Label { width: parent.width; text: result.modelData.name; font.pixelSize: Math.max(15, root.fontRoles.title); font.bold: true }
                     Label {
                       width: parent.width
                       text: root.mode === "deals" ? result.priceData.amount + " · " + result.priceData.region
@@ -740,10 +753,10 @@ Ui.Panel {
                     }
                     Label {
                       width: parent.width; visible: root.mode === "deals"
-                      text: result.priceData.note; font.pixelSize: Math.max(12, Style.font.caption)
+                      text: result.priceData.note; font.pixelSize: Math.max(12, root.fontRoles.caption)
                     }
                   }
-                  Label { text: "›"; font.pixelSize: Math.max(18, Style.font.heading) }
+                  Label { text: "›"; font.pixelSize: Math.max(18, root.fontRoles.heading) }
                 }
               }
               Action {
@@ -776,9 +789,9 @@ Ui.Panel {
                   Column {
                     Layout.fillWidth: true
                     spacing: Style.space(4)
-                    Label { width: parent.width; text: result.modelData.name; font.pixelSize: Math.max(20, Style.font.heading); font.bold: true }
+                    Label { width: parent.width; text: result.modelData.name; font.pixelSize: Math.max(20, root.fontRoles.heading); font.bold: true }
                     Label { width: parent.width; text: result.presentationData.detail; visible: text !== "" }
-                    Label { text: result.modelData.id; font.pixelSize: Math.max(12, Style.font.caption) }
+                    Label { text: result.modelData.id; font.pixelSize: Math.max(12, root.fontRoles.caption) }
                   }
                 }
                 Row {
@@ -787,15 +800,15 @@ Ui.Panel {
                   Action { width: (parent.width - parent.spacing) / 2; text: root.isFavourite(result.modelData.id) ? "★ Saved" : "☆ Save"; checked: root.isFavourite(result.modelData.id); enabled: root.storageReady; onClicked: root.favourite(result.modelData) }
                   Action { width: (parent.width - parent.spacing) / 2; text: root.comparisonIds.indexOf(result.modelData.id) !== -1 ? "✓ Selected" : "Compare"; checked: root.comparisonIds.indexOf(result.modelData.id) !== -1; onClicked: root.selectComparison(result.modelData.id) }
                 }
-                PanelSeparator { foreground: root.foreground }
+                Ui.PanelSeparator { foreground: root.foreground }
                 Column {
                   width: parent.width
                   spacing: Style.space(4)
-                  Label { text: "Saved price · " + result.priceData.region; font.pixelSize: Math.max(12, Style.font.caption) }
-                  Label { width: parent.width; text: result.priceData.amount; font.pixelSize: Math.max(24, Style.font.display); font.bold: true }
+                  Label { text: "Saved price · " + result.priceData.region; font.pixelSize: Math.max(12, root.fontRoles.caption) }
+                  Label { width: parent.width; text: result.priceData.amount; font.pixelSize: Math.max(24, root.fontRoles.display); font.bold: true }
                   Label { text: result.priceData.discount; visible: text !== ""; font.bold: true }
                   Label { text: "Original price · " + Model.initialPrice(result.modelData); visible: Model.initialPrice(result.modelData) !== "" }
-                  Label { width: parent.width; text: result.priceData.note.replace(/^Saved /, ""); font.pixelSize: Math.max(12, Style.font.caption) }
+                  Label { width: parent.width; text: result.priceData.note.replace(/^Saved /, ""); font.pixelSize: Math.max(12, root.fontRoles.caption) }
                 }
                 Row {
                   width: parent.width
@@ -817,9 +830,9 @@ Ui.Panel {
                   Action { width: parent.width; text: "Price history · GaugeDB"; onClicked: Quickshell.execDetached(["xdg-open", Model.links(result.modelData.id).history]) }
                   Action { width: parent.width; text: "Set price alert · GaugeDB"; onClicked: Quickshell.execDetached(["xdg-open", Model.links(result.modelData.id).alerts]) }
                   Action { width: parent.width; text: "Steam wishlist · GaugeDB"; onClicked: Quickshell.execDetached(["xdg-open", Model.wishlistLink()]) }
-                  Label { width: parent.width; text: "Account actions open in your browser and may require sign-in. The website uses its own store preference."; font.pixelSize: Math.max(12, Style.font.caption) }
+                  Label { width: parent.width; text: "Account actions open in your browser and may require sign-in. The website uses its own store preference."; font.pixelSize: Math.max(12, root.fontRoles.caption) }
                 }
-                PanelSeparator { foreground: root.foreground }
+                Ui.PanelSeparator { foreground: root.foreground }
                 GridLayout {
                   width: parent.width
                   columns: width >= Style.space(300) ? 2 : 1
@@ -831,7 +844,7 @@ Ui.Panel {
                     Layout.alignment: Qt.AlignTop
                     spacing: Style.space(8)
                     readonly property var activityData: Model.activityView(result.modelData)
-                    Label { text: "Global activity"; font.pixelSize: Math.max(12, Style.font.caption) }
+                    Label { text: "Global activity"; font.pixelSize: Math.max(12, root.fontRoles.caption) }
                     RowLayout {
                       width: parent.width
                       Label { Layout.fillWidth: true; text: "Players" }
@@ -842,7 +855,7 @@ Ui.Panel {
                       Label { Layout.fillWidth: true; text: "24h peak" }
                       Label { text: activity.activityData.peak; font.bold: true }
                     }
-                    Label { width: parent.width; text: activity.activityData.note; font.pixelSize: Math.max(12, Style.font.caption) }
+                    Label { width: parent.width; text: activity.activityData.note; font.pixelSize: Math.max(12, root.fontRoles.caption) }
                   }
                   Column {
                     id: reviews
@@ -850,7 +863,7 @@ Ui.Panel {
                     Layout.alignment: Qt.AlignTop
                     spacing: Style.space(8)
                     readonly property var reviewData: Model.reviewsView(result.modelData)
-                    Label { text: "Reviews"; font.pixelSize: Math.max(12, Style.font.caption) }
+                    Label { text: "Reviews"; font.pixelSize: Math.max(12, root.fontRoles.caption) }
                     RowLayout {
                       width: parent.width
                       Label { Layout.fillWidth: true; text: "Count" }
@@ -861,7 +874,7 @@ Ui.Panel {
                       Label { Layout.fillWidth: true; text: "Positive" }
                       Label { text: reviews.reviewData.score; font.bold: true }
                     }
-                    Label { width: parent.width; text: reviews.reviewData.note; font.pixelSize: Math.max(12, Style.font.caption) }
+                    Label { width: parent.width; text: reviews.reviewData.note; font.pixelSize: Math.max(12, root.fontRoles.caption) }
                   }
                 }
                 Action {
@@ -875,7 +888,7 @@ Ui.Panel {
                   width: parent.width
                   visible: root.showProvenance
                   text: "Catalogue observed · " + Model.compactObservation(result.modelData.metadata) + "\n" + root.coverage
-                  font.pixelSize: Math.max(12, Style.font.caption)
+                  font.pixelSize: Math.max(12, root.fontRoles.caption)
                 }
               }
             }
@@ -886,7 +899,7 @@ Ui.Panel {
             visible: root.games.length > 0
             text: root.mode === "saved" ? "Stored on this device. Open a game to load its summary." : (root.mode === "deals" ? "Partial coverage · latest 512 saved price observations.\n" : "")
               + "Saved observations · check Steam before buying."
-            font.pixelSize: Math.max(12, Style.font.caption)
+            font.pixelSize: Math.max(12, root.fontRoles.caption)
           }
         }
       }

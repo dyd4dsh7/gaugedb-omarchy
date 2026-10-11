@@ -1,26 +1,30 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import qs.Commons
-import qs.Ui
 import qs.Ui as Ui
 
 Ui.BarWidget {
   id: root
   moduleName: "com.gaugedb.search"
-  readonly property bool opened: panelLoader.item ? panelLoader.item.opened : false
-  readonly property bool popoutSwitchClosing: panelLoader.item ? panelLoader.item.popoutSwitchClosing : false
+  readonly property Panel loadedPanel: panelLoader.item as Panel
+  // Host grouped roles are exposed as QtObject; keep their dynamic contract explicit.
+  readonly property var barMetrics: Style.bar
+  readonly property bool opened: root.loadedPanel ? root.loadedPanel.opened : false
+  readonly property bool popoutSwitchClosing: root.loadedPanel ? root.loadedPanel.popoutSwitchClosing : false
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  function open() { if (panelLoader.item) panelLoader.item.open() }
-  function close() { if (panelLoader.item) panelLoader.item.close() }
-  function toggle() { if (panelLoader.item) panelLoader.item.toggle() }
-  function closeForPopoutSwitch() { if (panelLoader.item) panelLoader.item.closeForPopoutSwitch() }
+  function open() { if (root.loadedPanel) root.loadedPanel.open() }
+  function close() { if (root.loadedPanel) root.loadedPanel.close() }
+  function toggle() { if (root.loadedPanel) root.loadedPanel.toggle() }
+  function closeForPopoutSwitch() { if (root.loadedPanel) root.loadedPanel.closeForPopoutSwitch() }
   function injectPanel() {
-    if (!panelLoader.item) return
-    panelLoader.item.bar = root.bar
-    panelLoader.item.settings = root.settings
-    panelLoader.item.anchorItem = button
-    panelLoader.item.hostWidget = root
+    if (!root.loadedPanel) return
+    root.loadedPanel.bar = root.bar
+    root.loadedPanel.settings = root.settings
+    root.loadedPanel.anchorItem = button
+    root.loadedPanel.hostWidget = root
   }
   onBarChanged: injectPanel()
   onSettingsChanged: injectPanel()
@@ -32,7 +36,7 @@ Ui.BarWidget {
     visible: false
     onLoaded: { root.injectPanel(); Qt.callLater(root.injectPanel) }
   }
-  BarIconButton {
+  Ui.BarIconButton {
     id: button
     anchors.fill: parent
     bar: root.bar
@@ -44,7 +48,7 @@ Ui.BarWidget {
       }
     }
     active: root.opened
-    slotSize: Style.bar.statusSlot
+    slotSize: root.barMetrics.statusSlot
     tooltipText: "GaugeDB — games and regional deals"
     onPressed: function(buttonCode) { if (buttonCode === Qt.LeftButton) root.toggle() }
   }

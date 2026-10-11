@@ -3,8 +3,9 @@
 Search Steam games, browse regional deals, save favourites and compare two games
 from an Omarchy bar panel. Built for **Omarchy Quattro / Omarchy 4** and Quickshell.
 
-**Version 0.2.0 is a testing release. Full Omarchy desktop validation is pending.**
-The JavaScript regression suite passes; it does not prove QML loading or desktop behavior.
+**Version 0.2.1 is a testing release. Full Omarchy desktop validation is pending.**
+QML lint, native headless smoke checks and the JavaScript regression suite pass;
+full desktop behavior remains unverified.
 
 ## Features
 
@@ -105,7 +106,7 @@ To delete it too, first back it up, then remove only
 ```sh
 bun --no-env-file test
 omarchy plugin validate .
-qmllint -I "$OMARCHY_PATH/shell" BarWidget.qml Panel.qml BrandMark.qml
+OMARCHY_PATH=/path/to/omarchy bash scripts/lint-qml.sh
 ```
 
 The standalone suite uses synthetic public response data and the shipped
@@ -114,15 +115,27 @@ country filtering, storage bounds, request cancellation, late callbacks and reco
 Panel tests execute extracted QML JavaScript methods with a fake transport and timers;
 they do not execute a QML engine or real filesystem integration.
 
-Before marketplace submission, complete [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)
-on a real Omarchy host. Qt networking, image loading, restart persistence,
+For release validation, complete [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)
+on a real Omarchy host. Image loading, full shell restart persistence,
 keyboard/accessibility and desktop/390px rendering in both themes remain unverified.
 No preview screenshot is supplied until a real native capture is available.
 
-[SUBMISSION.md](SUBMISSION.md) contains the prepared marketplace issue draft.
+[SUBMISSION.md](SUBMISSION.md) records the marketplace issue and submission body.
 See the [marketplace submission status](https://github.com/omacom/omarchy-plugin-marketplace/issues?q=GaugeDB).
 Repository publication and issue submission do not mean store approval.
 Current checks and their limits are recorded in [VALIDATION.md](VALIDATION.md).
+
+For Linux native smoke checks with an existing Wayland session:
+
+```sh
+GAUGEDB_WAYLAND_RUNTIME="$XDG_RUNTIME_DIR" bash scripts/native-smoke.sh
+```
+
+Set `OMARCHY_PATH` to the official checkout first. The runner needs Bash, coreutils,
+Git/Qt/Quickshell host dependencies and jq. It copies runtime files to an isolated
+temporary config/state path and removes those test files afterward; no user state
+is changed. Its live network case reads public catalogue data. It does not open
+browser pages, create alerts or authenticate accounts.
 
 ## Later work
 
