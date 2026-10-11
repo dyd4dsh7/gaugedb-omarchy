@@ -6,9 +6,11 @@
 - Root manifest, MIT license, install/removal/dependency/privacy documentation.
 - Standalone JavaScript model, storage and panel-method tests.
 
-## Required on an Omarchy Quattro host
+## Remaining on a real Omarchy Quattro host
 
-- [ ] Run `omarchy plugin validate .` and `qmllint` with the shell import path.
+- [x] Official manifest validator passes locally.
+- [x] Headless Wayland/Quickshell component loading attempted; see VALIDATION.md.
+- [ ] Resolve/review qmllint warnings and validate on the actual Omarchy host.
 - [ ] Install, enable, summon/hide, disable/re-enable, restart shell and remove.
 - [ ] Search, deals, details and comparison; missing/partial data and long titles.
 - [ ] Country dropdown search, no matches, arrows, Enter, Escape, outside click and focus return.
@@ -21,7 +23,11 @@
 
 ## Submission
 
-- [ ] Recheck plugin ID availability and public repository files at the exact release commit.
+- [x] Rechecked current catalogue, existing submission search and public repository files.
 - [ ] Complete native checks above and record host/version/results.
-- [ ] Confirm submission ownership checklist and submit the prepared issue.
+- [x] Owner authorized public MIT plugin publication and marketplace submission.
+- [ ] Marketplace issue submission/validation; track the linked issue in SUBMISSION.md.
 - [ ] Wait for marketplace validation and maintainer approval; repository publication alone is not store listing.
+
+Submission is permitted as a testing release with incomplete native checks disclosed;
+these unchecked items remain release validation work and are not claimed complete.

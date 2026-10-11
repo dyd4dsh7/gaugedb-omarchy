@@ -3,7 +3,7 @@
 Search Steam games, browse regional deals, save favourites and compare two games
 from an Omarchy bar panel. Built for **Omarchy Quattro / Omarchy 4** and Quickshell.
 
-**Version 0.2.0 is a testing release. Native Omarchy runtime validation is pending.**
+**Version 0.2.0 is a testing release. Full Omarchy desktop validation is pending.**
 The JavaScript regression suite passes; it does not prove QML loading or desktop behavior.
 
 ## Features
@@ -115,12 +115,14 @@ Panel tests execute extracted QML JavaScript methods with a fake transport and t
 they do not execute a QML engine or real filesystem integration.
 
 Before marketplace submission, complete [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)
-on a real Omarchy host. Native parsing, Qt networking, image loading, persistence,
+on a real Omarchy host. Qt networking, image loading, restart persistence,
 keyboard/accessibility and desktop/390px rendering in both themes remain unverified.
 No preview screenshot is supplied until a real native capture is available.
 
 [SUBMISSION.md](SUBMISSION.md) contains the prepared marketplace issue draft.
-The plugin has not been submitted or approved for listing.
+See the [marketplace submission status](https://github.com/omacom/omarchy-plugin-marketplace/issues?q=GaugeDB).
+Repository publication and issue submission do not mean store approval.
+Current checks and their limits are recorded in [VALIDATION.md](VALIDATION.md).
 
 ## Later work
 
