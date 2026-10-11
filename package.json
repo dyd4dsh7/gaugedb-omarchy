@@ -1,0 +1,9 @@
+{
+  "name": "gaugedb-omarchy",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "test": "bun --no-env-file test"
+  },
+  "license": "MIT"
+}

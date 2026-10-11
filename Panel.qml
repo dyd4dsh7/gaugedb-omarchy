@@ -1,0 +1,895 @@
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls as Controls
+import Quickshell
+import Quickshell.Io
+import qs.Commons
+import qs.Commons as Commons
+import qs.Ui
+import qs.Ui as Ui
+import "Model.js" as Model
+import "Store.js" as Store
+import "Countries.js" as Countries
+
+Ui.Panel {
+  id: root
+  moduleName: "com.gaugedb.search"
+  manageIpc: false
+  property var anchorItem: null
+  property var hostWidget: null
+  property var games: []
+  property string message: "Find a game by title."
+  property string coverage: ""
+  property bool busy: false
+  property int serial: 0
+  property var pending: null
+  property string mode: "search"
+  property string selectedId: ""
+  property bool canRetry: false
+  property var listGames: []
+  property string listCoverage: ""
+  property string listMode: "search"
+  property string listMessage: "Find a game by title."
+  property var presentation: ({})
+  property var artworkQueue: []
+  property var artworkPending: null
+  property bool showProvenance: false
+  property var localData: Store.empty()
+  property bool storageReady: false
+  property bool storageWritable: true
+  property bool storageWriting: false
+  property bool storageDirty: false
+  property string storageMessage: ""
+  property string countryCode: Countries.supported(String(root.setting("country", "NZ")).trim().toUpperCase()) ? String(root.setting("country", "NZ")).trim().toUpperCase() : "NZ"
+  property bool choosingCountry: false
+  property string savedSection: "favourites"
+  property var comparisonIds: []
+  property string requestBody: ""
+  property bool offline: false
+  property bool listOffline: false
+  property bool showMoreActions: false
+  readonly property bool showingDetails: mode === "details" || mode === "compare"
+  readonly property string stateDirectory: (Quickshell.env("XDG_STATE_HOME").charAt(0) === "/" ? Quickshell.env("XDG_STATE_HOME") : Quickshell.env("HOME") + "/.local/state") + "/gaugedb-omarchy"
+  readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
+  readonly property color foreground: Commons.Color.popups.text
+
+  function cancel() {
+    if (busy) { message = "Request cancelled."; canRetry = true }
+    serial += 1
+    deadline.stop()
+    artworkDeadline.stop()
+    artworkQueue = []
+    var oldArtwork = artworkPending
+    artworkPending = null
+    if (oldArtwork) oldArtwork.abort()
+    var previous = pending
+    pending = null
+    if (previous) previous.abort()
+    busy = false
+  }
+  function close() { countryPopup.close(); cancel(); root.controller.hide() }
+  function switchPanel(direction) {
+    if (root.bar && typeof root.bar.switchPanelFrom === "function")
+      return root.bar.switchPanelFrom(root.hostWidget || root, direction)
+    return false
+  }
+  function call(name, args) {
+    cancel()
+    games = []
+    coverage = ""
+    canRetry = false
+    showProvenance = false
+    showMoreActions = false
+    offline = false
+    var id = serial
+    var body
+    try { body = Model.request(name, args, id) }
+    catch (error) { message = error.message; return }
+    requestBody = body
+    busy = true
+    message = name === "find_deals" ? "Loading regional deals…" : name === "get_game" ? "Loading game…" : "Searching games…"
+    var xhr = new XMLHttpRequest()
+    pending = xhr
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState !== XMLHttpRequest.DONE || id !== root.serial || root.pending !== xhr) return
+      deadline.stop()
+      root.pending = null
+      root.busy = false
+      if (xhr.status !== 200) {
+        root.canRetry = true
+        root.recover(xhr.status === 429 ? "Too many requests. Wait a minute and retry."
+          : "GaugeDB is unavailable. Check your connection and retry.")
+        return
+      }
+      try {
+        var requestArgs = JSON.parse(body).params.arguments
+        var result = Model.decode(xhr.responseText, id, { gameId: requestArgs.id, ids: requestArgs.ids, country: requestArgs.country })
+        root.games = result.games
+        root.coverage = result.coverage
+        root.message = result.games.length ? (result.missingIds && result.missingIds.length ? "Some selected games have no saved data." : "") : "No saved results for this request."
+        root.localData = Store.put(root.localData, body, result, Date.now())
+        if (name === "get_game" && result.games.length) root.localData = Store.remember(root.localData, result.games[0])
+        root.persist()
+        root.enrich(result.games)
+      } catch (error) { root.canRetry = true; root.recover("GaugeDB returned an unexpected response. Try again.") }
+    }
+    try {
+      xhr.open("POST", Model.endpoint)
+      xhr.setRequestHeader("Content-Type", "application/json")
+      xhr.setRequestHeader("Accept", "application/json, text/event-stream")
+      xhr.setRequestHeader("MCP-Protocol-Version", "2025-03-26")
+      deadline.restart()
+      xhr.send(body)
+    } catch (error) {
+      cancel()
+      canRetry = true
+      recover("GaugeDB is unavailable. Check your connection and retry.")
+    }
+  }
+  function enrich(items) {
+    artworkQueue = items.slice(0, 5).filter(function(game) { return !root.presentation[game.id] }).map(function(game) { return game.id })
+    fetchPresentation()
+  }
+  function fetchPresentation() {
+    if (!root.opened || artworkPending || !artworkQueue.length) return
+    var gameId = artworkQueue[0]
+    artworkQueue = artworkQueue.slice(1)
+    var generation = serial
+    var xhr = new XMLHttpRequest()
+    artworkPending = xhr
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState !== XMLHttpRequest.DONE || generation !== root.serial || root.artworkPending !== xhr) return
+      artworkDeadline.stop()
+      root.artworkPending = null
+      if (xhr.status === 429) { root.artworkQueue = []; return }
+      if (xhr.status === 200) {
+        try {
+          var item = Model.decodePresentation(xhr.responseText, gameId)
+          var next = Object.assign({}, root.presentation)
+          next[gameId] = item
+          var keys = Object.keys(next)
+          while (keys.length > 30) delete next[keys.shift()]
+          root.presentation = next
+        } catch (error) { /* Optional artwork never blocks saved game data. */ }
+      }
+      root.fetchPresentation()
+    }
+    try {
+      xhr.open("GET", Model.presentationUrl(gameId))
+      xhr.setRequestHeader("Accept", "application/json")
+      artworkDeadline.restart()
+      xhr.send()
+    } catch (error) {
+      artworkDeadline.stop()
+      artworkPending = null
+      xhr.abort()
+      Qt.callLater(function() { if (generation === root.serial) root.fetchPresentation() })
+    }
+  }
+  function search() { mode = "search"; selectedId = ""; call("search_games", { query: query.text }) }
+  function deals() { mode = "deals"; selectedId = ""; call("find_deals", { country: countryCode }) }
+  function details(id) {
+    if (mode !== "details" && mode !== "compare") {
+      listGames = games
+      listCoverage = coverage
+      listMode = mode
+      listMessage = message
+      listOffline = offline
+    }
+    mode = "details"
+    selectedId = id
+    call("get_game", { id: id, country: countryCode })
+    scroll.contentY = 0
+  }
+  function back() {
+    var previousId = selectedId
+    cancel()
+    mode = listMode
+    games = listGames
+    coverage = listCoverage
+    message = listMessage
+    offline = listOffline
+    if (mode === "saved") {
+      games = Store.savedGames(localData, savedSection)
+      offline = false
+      message = games.length ? "" : savedSection === "recent" ? "Games you open will appear here." : "Save a game from its details."
+    }
+    selectedId = ""
+    canRetry = false
+    scroll.contentY = 0
+    if (!offline) enrich(games)
+    Qt.callLater(function() {
+      for (var i = 0; i < results.count; i++) {
+        var item = results.itemAt(i)
+        if (item && item.modelData.id === previousId) { item.focusResult(); return }
+      }
+      if (root.mode === "search") query.forceActiveFocus(); else if (root.mode === "saved") savedTab.forceActiveFocus(); else dealsTab.forceActiveFocus()
+    })
+  }
+  function retry() {
+    if (mode === "deals") deals()
+    else if (mode === "details") details(selectedId)
+    else if (mode === "compare") compare()
+    else search()
+  }
+  function countryChanged() {
+    cancel()
+    games = []
+    coverage = ""
+    listGames = []
+    listCoverage = ""
+    listMode = "search"
+    listMessage = "Find a game by title."
+    mode = "search"
+    selectedId = ""
+    canRetry = false
+    offline = false
+    message = "Search or browse deals for this country."
+  }
+  function queryChanged() {
+    cancel()
+    games = []
+    coverage = ""
+    canRetry = false
+    message = "Press Enter or Search."
+  }
+  function persist() {
+    storageDirty = true
+    if (storageReady && storageWritable) writeDelay.restart()
+  }
+  function writeState() {
+    if (!storageReady || !storageWritable || storageWriting || !storageDirty) return
+    storageDirty = false
+    storageWriting = true
+    try { stateFile.setText(Store.encode(localData)) }
+    catch (error) { storageWriting = false; storageMessage = "Local changes could not be saved; kept for this session." }
+  }
+  function loadState(text) {
+    try {
+      var loaded = Store.read(text, Model, Countries)
+      // Preserve changes made while the asynchronous disk read was finishing.
+      localData = storageDirty ? Store.mergeLoaded(loaded, localData) : loaded
+      if (localData.country && Countries.supported(localData.country) && countryCode !== localData.country) { countryCode = localData.country; countryChanged() }
+      storageReady = true
+      if (storageDirty) persist()
+      if (mode === "saved") saved()
+    } catch (error) {
+      storageReady = true
+      storageWritable = false
+      storageMessage = "Saved data could not be read. Existing file preserved; changes stay in this session."
+    }
+  }
+  function setCountry(code) {
+    if (!Countries.supported(code)) return
+    if (countryCode !== code) { countryCode = code; countryChanged() }
+    choosingCountry = false
+    countryPopup.close()
+    localData = Object.assign({}, localData, { country: code })
+    persist()
+  }
+  function favourite(game) {
+    try { localData = Store.toggle(localData, game); persist(); if (mode === "saved") saved() }
+    catch (error) { storageMessage = error.message }
+  }
+  function isFavourite(id) { return localData.favourites.some(function(game) { return game.id === id }) }
+  function saved() {
+    cancel()
+    mode = "saved"
+    offline = false
+    games = Store.savedGames(localData, savedSection)
+    coverage = ""
+    canRetry = false
+    selectedId = ""
+    message = games.length ? "" : savedSection === "recent" ? "Games you open will appear here." : "Save a game from its details."
+    enrich(games)
+  }
+  function selectComparison(id) {
+    if (!Model.gameId(id)) return
+    if (comparisonIds.indexOf(id) !== -1) comparisonIds = comparisonIds.filter(function(value) { return value !== id })
+    else if (comparisonIds.length < 2) comparisonIds = comparisonIds.concat([id])
+    else message = "Remove a selected game before adding another."
+  }
+  function compare() {
+    if (comparisonIds.length !== 2) return
+    if (mode !== "compare" && mode !== "details") {
+      listGames = games; listCoverage = coverage; listMode = mode; listMessage = message; listOffline = offline
+    }
+    mode = "compare"
+    selectedId = ""
+    call("compare_games", { ids: comparisonIds, country: countryCode })
+    scroll.contentY = 0
+  }
+  function recover(reason) {
+    var cached = requestBody ? Store.get(localData, requestBody, Date.now()) : null
+    if (!cached) { message = reason; return }
+    games = cached.result.games
+    coverage = cached.result.coverage
+    offline = true
+    message = reason + "\nOffline summary · cached " + Model.compactObservation({at: new Date(cached.savedAt).toISOString(), freshness: "stale"})
+    if (mode === "details" && games.length) { localData = Store.remember(localData, games[0]); persist() }
+    // Cache recovery never starts additional network requests.
+  }
+  function reveal(item) {
+    var top = item.mapToItem(content, 0, 0).y
+    if (top < scroll.contentY) scroll.contentY = top
+    else if (top + item.height > scroll.contentY + scroll.height)
+      scroll.contentY = Math.max(0, top + item.height - scroll.height)
+  }
+  onOpenedChanged: { if (!opened) cancel(); else if (games.length && !offline) enrich(games) }
+  onSettingsChanged: {
+    var code = String(root.setting("country", "NZ")).trim().toUpperCase()
+    if (storageReady && Countries.supported(code) && code !== countryCode) root.setCountry(code)
+  }
+  Component.onDestruction: cancel()
+
+  Timer {
+    id: deadline
+    interval: 12000
+    onTriggered: { root.cancel(); root.canRetry = true; root.recover("Request timed out. Check your connection and retry.") }
+  }
+  Timer { id: writeDelay; interval: 200; onTriggered: root.writeState() }
+  Process {
+    command: ["mkdir", "-p", "--", root.stateDirectory]
+    running: true
+    onExited: function(exitCode, exitStatus) {
+      if (exitCode === 0 && exitStatus === 0) stateFile.path = root.stateDirectory + "/state.json"
+      else { root.storageReady = true; root.storageWritable = false; root.storageMessage = "Local storage is unavailable; changes stay in this session." }
+    }
+  }
+  FileView {
+    id: stateFile
+    path: ""
+    atomicWrites: true
+    printErrors: false
+    onLoaded: root.loadState(text())
+    onLoadFailed: function(error) {
+      root.storageReady = true
+      if (error === FileViewError.FileNotFound) { if (root.storageDirty) root.persist() }
+      else { root.storageWritable = false; root.storageMessage = "Local storage could not be read; changes stay in this session." }
+    }
+    onSaved: { root.storageWriting = false; root.storageMessage = ""; if (root.storageDirty) root.persist() }
+    onSaveFailed: { root.storageWriting = false; root.storageMessage = "Local changes could not be saved; kept for this session." }
+  }
+  Timer {
+    id: artworkDeadline
+    interval: 8000
+    onTriggered: {
+      var previous = root.artworkPending
+      root.artworkPending = null
+      if (previous) previous.abort()
+      root.fetchPresentation()
+    }
+  }
+
+  component Artwork: Item {
+    id: artwork
+    property string imageUrl: ""
+    property string title: ""
+    Rectangle {
+      anchors.fill: parent
+      radius: Style.space(4)
+      color: Commons.Color.background
+    }
+    Label {
+      anchors.fill: parent
+      text: picture.status === Image.Loading ? "Loading artwork…" : "Artwork unavailable"
+      font.pixelSize: Math.max(12, Style.font.caption)
+      horizontalAlignment: Text.AlignHCenter
+      verticalAlignment: Text.AlignVCenter
+      visible: picture.status !== Image.Ready
+    }
+    Image {
+      id: picture
+      anchors.fill: parent
+      source: root.opened && !root.offline ? artwork.imageUrl : ""
+      fillMode: Image.PreserveAspectFit
+      asynchronous: true
+      sourceSize.width: Math.round(artwork.width * 2)
+      sourceSize.height: Math.round(artwork.height * 2)
+      Accessible.name: artwork.title + " Steam artwork"
+    }
+  }
+
+  component Label: Text {
+    color: root.foreground
+    font.family: root.fontFamily
+    font.pixelSize: Math.max(13, Style.font.body)
+    textFormat: Text.PlainText
+    wrapMode: Text.WordWrap
+  }
+  component Action: Controls.Button {
+    id: action
+    property bool quiet: false
+    property bool emphasized: false
+    palette.button: Commons.Color.background
+    palette.buttonText: Commons.Color.popups.text
+    palette.highlight: Commons.Color.accent
+    palette.highlightedText: Commons.Color.background
+    font.family: root.fontFamily
+    font.pixelSize: Math.max(13, Style.font.body)
+    font.bold: checked || emphasized
+    implicitHeight: Math.max(44, contentItem.implicitHeight + Style.space(16))
+    leftPadding: Style.space(12)
+    rightPadding: Style.space(12)
+    hoverEnabled: true
+    opacity: enabled ? 1 : 0.5
+    background: Rectangle {
+      radius: Style.cornerRadius
+      color: action.down ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.18)
+        : action.checked || action.emphasized ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.12)
+        : action.hovered ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.07) : "transparent"
+      border.width: action.activeFocus ? 2 : action.quiet ? 0 : 1
+      border.color: action.activeFocus ? Commons.Color.accent : Commons.Color.popups.border
+    }
+    contentItem: Label {
+      text: action.text
+      font: action.font
+      horizontalAlignment: Text.AlignHCenter
+      verticalAlignment: Text.AlignVCenter
+    }
+    Accessible.name: text
+    onActiveFocusChanged: if (activeFocus) root.reveal(this)
+    Keys.onEscapePressed: root.close()
+  }
+  component Field: Controls.TextField {
+    id: field
+    property bool scrollIntoView: true
+    property real surfaceRadius: Style.cornerRadius
+    property var escapeAction: function() { root.close() }
+    palette.base: Commons.Color.background
+    palette.text: Commons.Color.popups.text
+    palette.highlight: Commons.Color.accent
+    palette.highlightedText: Commons.Color.background
+    palette.placeholderText: Commons.Color.popups.text
+    font.family: root.fontFamily
+    font.pixelSize: Math.max(14, Style.font.subtitle)
+    implicitHeight: 44
+    selectByMouse: true
+    leftPadding: Style.space(12)
+    rightPadding: Style.space(12)
+    background: Rectangle {
+      radius: field.surfaceRadius
+      color: Commons.Color.background
+      border.width: field.activeFocus ? 2 : 1
+      border.color: field.activeFocus ? Commons.Color.accent : Commons.Color.popups.border
+    }
+    onActiveFocusChanged: if (activeFocus && scrollIntoView) root.reveal(this)
+    Keys.onEscapePressed: field.escapeAction()
+  }
+
+  KeyboardPanel {
+    id: panel
+    anchorItem: root.anchorItem
+    owner: root.hostWidget || root
+    bar: root.bar
+    open: root.opened
+    focusTarget: root.showingDetails ? backButton : root.mode === "search" ? query : root.mode === "saved" ? savedTab : dealsTab
+    contentWidth: panel.fittedContentWidth(Style.space(root.mode === "compare" ? 760 : 480))
+    contentHeight: panel.fittedContentHeight(Math.max(content.implicitHeight, root.choosingCountry ? Style.space(360) : 0), Style.space(640))
+
+    // Let native controls own Tab and text editing; catch Escape after them.
+    Item {
+      id: viewport
+      anchors.fill: parent
+      Keys.onEscapePressed: root.close()
+      Controls.Popup {
+        id: countryPopup
+        parent: viewport
+        width: Math.min(Style.space(360), viewport.width)
+        x: Math.max(0, Math.min(viewport.width - width, storeTrigger.mapToItem(viewport, storeTrigger.width, 0).x - width))
+        y: Math.max(0, Math.min(viewport.height - height, storeTrigger.mapToItem(viewport, 0, storeTrigger.height).y + Style.space(8)))
+        padding: Style.space(8)
+        focus: true
+        modal: true
+        dim: false
+        closePolicy: Controls.Popup.CloseOnEscape | Controls.Popup.CloseOnPressOutside
+        onOpened: {
+          root.choosingCountry = true
+          countrySearch.text = ""
+          countryChoices.currentIndex = Math.max(0, countryChoices.model.findIndex(function(item) { return item.code === root.countryCode }))
+          Qt.callLater(function() { countryChoices.positionViewAtIndex(countryChoices.currentIndex, ListView.Contain); countrySearch.forceActiveFocus() })
+        }
+        onClosed: { root.choosingCountry = false; if (root.opened) storeTrigger.forceActiveFocus() }
+        background: Rectangle {
+          color: Commons.Color.popups.background
+          radius: Style.cornerRadius
+          border.width: 1
+          border.color: Commons.Color.popups.border
+        }
+        contentItem: Column {
+          id: countryPickerContent
+          spacing: Style.space(8)
+          Field {
+            id: countrySearch
+            width: parent.width
+            placeholderText: "Search countries or codes"
+            maximumLength: 80
+            scrollIntoView: false
+            surfaceRadius: Math.max(0, Style.cornerRadius - countryPopup.padding)
+            escapeAction: function() { countryPopup.close() }
+            Accessible.name: "Search store countries"
+            onTextEdited: { countryChoices.currentIndex = countryChoices.count ? 0 : -1; countryChoices.positionViewAtBeginning() }
+            onAccepted: if (countryChoices.currentIndex >= 0) root.setCountry(countryChoices.model[countryChoices.currentIndex].code)
+            Keys.onDownPressed: { if (countryChoices.count) { countryChoices.currentIndex = Math.max(0, countryChoices.currentIndex); countryChoices.forceActiveFocus() } }
+          }
+          ListView {
+            id: countryChoices
+            width: parent.width
+            height: Math.min(Math.max(1, count) * 44, Math.max(44, Math.min(Style.space(264), viewport.height - countrySearch.height - countryPickerContent.spacing - countryPopup.padding * 2 - Style.space(16))))
+            model: Countries.filter(countrySearch.text)
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            keyNavigationEnabled: true
+            highlightMoveDuration: 0
+            Controls.ScrollBar.vertical: Controls.ScrollBar {}
+            Keys.onReturnPressed: if (currentIndex >= 0) root.setCountry(model[currentIndex].code)
+            Keys.onEnterPressed: if (currentIndex >= 0) root.setCountry(model[currentIndex].code)
+            Keys.onEscapePressed: countryPopup.close()
+            Keys.onUpPressed: function(event) { if (currentIndex <= 0) countrySearch.forceActiveFocus(); else event.accepted = false }
+            delegate: Controls.ItemDelegate {
+              id: countryChoice
+              required property var modelData
+              required property int index
+              width: countryChoices.width
+              height: Math.max(44, contentItem.implicitHeight + Style.space(12))
+              Accessible.name: modelData.name + ", " + modelData.code
+              Accessible.selected: modelData.code === root.countryCode
+              hoverEnabled: true
+              onClicked: root.setCountry(modelData.code)
+              onActiveFocusChanged: if (activeFocus) countryChoices.currentIndex = index
+              background: Rectangle {
+                radius: Math.max(0, Style.cornerRadius - countryPopup.padding)
+                color: countryChoice.down ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.18)
+                  : countryChoice.modelData.code === root.countryCode || countryChoice.hovered ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08) : "transparent"
+                border.width: countryChoice.activeFocus || (countryChoices.activeFocus && countryChoices.currentIndex === countryChoice.index) ? 2 : 0
+                border.color: Commons.Color.accent
+              }
+              contentItem: RowLayout {
+                spacing: Style.space(12)
+                Label { Layout.fillWidth: true; text: countryChoice.modelData.name }
+                Label { text: countryChoice.modelData.code; font.pixelSize: Math.max(12, Style.font.caption) }
+                Label { text: countryChoice.modelData.code === root.countryCode ? "✓" : ""; Layout.preferredWidth: Style.space(16) }
+              }
+            }
+            Label { anchors.fill: parent; text: "No matching countries"; visible: countryChoices.count === 0; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+          }
+        }
+      }
+      Flickable {
+        id: scroll
+        anchors.fill: parent
+        contentWidth: width
+        contentHeight: content.implicitHeight
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+        Controls.ScrollBar.vertical: Controls.ScrollBar {}
+
+        Column {
+          id: content
+          width: parent.width
+          spacing: Style.space(12)
+          RowLayout {
+            width: parent.width
+            spacing: Style.space(16)
+            Item {
+              Layout.fillWidth: true
+              implicitHeight: Style.space(36)
+              Image {
+                width: Math.min(Style.space(144), parent.width)
+                height: parent.height
+                anchors.verticalCenter: parent.verticalCenter
+                source: Qt.resolvedUrl((Commons.Color.popups.background.r * 0.299 + Commons.Color.popups.background.g * 0.587 + Commons.Color.popups.background.b * 0.114) > 0.5 ? "assets/logo-light.svg" : "assets/logo.svg")
+                fillMode: Image.PreserveAspectFit
+                horizontalAlignment: Image.AlignLeft
+                Accessible.name: "GaugeDB"
+              }
+            }
+            Action {
+              id: storeTrigger
+              text: "Store · " + root.countryCode + "  ▾"
+              Accessible.name: "Choose store country, " + Countries.label(root.countryCode)
+              checked: root.choosingCountry
+              onClicked: countryPopup.opened ? countryPopup.close() : countryPopup.open()
+            }
+          }
+          Label { width: parent.width; text: root.storageMessage; visible: text !== ""; font.pixelSize: Math.max(12, Style.font.caption) }
+          PanelSeparator { foreground: root.foreground }
+          Row {
+            width: parent.width
+            visible: !root.showingDetails
+            spacing: Style.space(8)
+            Action {
+              id: savedTab
+              text: "Saved"; width: (parent.width - parent.spacing * 2) / 3
+              checked: root.mode === "saved"
+              Accessible.role: Accessible.PageTab
+              Accessible.selected: checked
+              onClicked: root.saved()
+            }
+            Action {
+              id: gamesTab
+              text: "Games"; width: (parent.width - parent.spacing * 2) / 3
+              checked: root.mode === "search"
+              Accessible.role: Accessible.PageTab
+              Accessible.selected: checked
+              onClicked: {
+                if (root.mode === "search") { query.forceActiveFocus(); return }
+                root.cancel(); root.mode = "search"; root.games = []; root.coverage = ""; root.canRetry = false
+                root.message = "Find a game by title."
+                query.forceActiveFocus()
+              }
+            }
+            Action {
+              id: dealsTab
+              text: "Deals"; width: (parent.width - parent.spacing * 2) / 3
+              checked: root.mode === "deals"
+              Accessible.role: Accessible.PageTab
+              Accessible.selected: checked
+              onClicked: root.deals()
+            }
+          }
+          Row {
+            width: parent.width
+            visible: root.mode === "saved"
+            spacing: Style.space(8)
+            Action { width: (parent.width - parent.spacing) / 2; text: "Favourites"; checked: root.savedSection === "favourites"; onClicked: { root.savedSection = "favourites"; root.saved() } }
+            Action { width: (parent.width - parent.spacing) / 2; text: "Recent"; checked: root.savedSection === "recent"; onClicked: { root.savedSection = "recent"; root.saved() } }
+          }
+          RowLayout {
+            width: parent.width
+            visible: root.comparisonIds.length > 0 && root.mode !== "compare"
+            spacing: Style.space(8)
+            Label { Layout.fillWidth: true; text: root.comparisonIds.length + " / 2 selected" }
+            Action { text: "Clear"; quiet: true; onClicked: root.comparisonIds = [] }
+            Action { text: "Compare"; emphasized: true; enabled: root.comparisonIds.length === 2; onClicked: root.compare() }
+          }
+          RowLayout {
+            width: parent.width
+            visible: root.mode === "search"
+            spacing: Style.space(8)
+            Field {
+              id: query
+              Layout.fillWidth: true
+              placeholderText: "Search games"
+              maximumLength: 100
+              Accessible.name: "Game title"
+              onAccepted: root.search()
+              onTextEdited: root.queryChanged()
+              Keys.onDownPressed: { var first = results.itemAt(0); if (first) first.focusResult() }
+            }
+            Action {
+              text: "Search"
+              emphasized: true
+              enabled: query.text.trim().length > 0
+              onClicked: root.search()
+            }
+          }
+          Action {
+            id: backButton
+            visible: root.showingDetails
+            text: "‹  Results"
+            quiet: true
+            onClicked: root.back()
+          }
+          RowLayout {
+            width: parent.width
+            visible: root.games.length > 0 && !root.showingDetails
+            Label {
+              Layout.fillWidth: true
+              text: root.mode === "deals" ? "Regional deals" : root.mode === "saved" ? (root.savedSection === "recent" ? "Recent games" : "Favourites") : "Search results"
+              font.pixelSize: Math.max(12, Style.font.caption)
+            }
+            Label { text: String(root.games.length); font.pixelSize: Math.max(12, Style.font.caption) }
+          }
+          Label { width: parent.width; text: root.message; visible: text !== ""; Accessible.role: Accessible.StaticText }
+          Action { text: "Retry"; visible: !root.busy && root.canRetry; onClicked: root.retry() }
+          GridLayout {
+            id: gameGrid
+            width: parent.width
+            columns: root.mode === "compare" && width >= Style.space(600) ? 2 : 1
+            columnSpacing: Style.space(24)
+            rowSpacing: Style.space(20)
+          Repeater {
+            id: results
+            model: root.games
+            delegate: Item {
+              id: result
+              required property var modelData
+              required property int index
+              function focusResult() { resultButton.forceActiveFocus() }
+              readonly property var priceData: Model.priceView(modelData)
+              readonly property var presentationData: root.presentation[modelData.id] || ({image: "", detail: ""})
+              Layout.fillWidth: true
+              Layout.alignment: Qt.AlignTop
+              Layout.preferredWidth: gameGrid.columns === 2 ? (content.width - gameGrid.columnSpacing) / 2 : content.width
+              implicitHeight: root.showingDetails ? detail.implicitHeight : Math.max(resultButton.implicitHeight, selectButton.implicitHeight)
+              Action {
+                id: resultButton
+                width: parent.width - Style.space(52)
+                visible: !root.showingDetails
+                quiet: true
+                Accessible.name: result.modelData.name + ", view details"
+                onClicked: root.details(result.modelData.id)
+                Keys.onDownPressed: {
+                  var next = results.itemAt(result.index + 1)
+                  if (next) next.focusResult()
+                }
+                Keys.onUpPressed: {
+                  var previous = results.itemAt(result.index - 1)
+                  if (previous) previous.focusResult()
+                  else if (root.mode === "search") query.forceActiveFocus()
+                  else if (root.mode === "saved") savedTab.forceActiveFocus()
+                  else dealsTab.forceActiveFocus()
+                }
+                contentItem: RowLayout {
+                  spacing: Style.space(12)
+                  Artwork {
+                    Layout.preferredWidth: content.width < Style.space(380) ? Style.space(104) : Style.space(136)
+                    Layout.preferredHeight: width * 87 / 231
+                    imageUrl: result.presentationData.image
+                    title: result.modelData.name
+                  }
+                  Column {
+                    Layout.fillWidth: true
+                    spacing: Style.space(4)
+                    Label { width: parent.width; text: result.modelData.name; font.pixelSize: Math.max(15, Style.font.title); font.bold: true }
+                    Label {
+                      width: parent.width
+                      text: root.mode === "deals" ? result.priceData.amount + " · " + result.priceData.region
+                        + (result.priceData.discount ? " · " + result.priceData.discount : "") : result.presentationData.detail || result.modelData.id
+                    }
+                    Label {
+                      width: parent.width; visible: root.mode === "deals"
+                      text: result.priceData.note; font.pixelSize: Math.max(12, Style.font.caption)
+                    }
+                  }
+                  Label { text: "›"; font.pixelSize: Math.max(18, Style.font.heading) }
+                }
+              }
+              Action {
+                id: selectButton
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                width: Style.space(44)
+                visible: !root.showingDetails
+                text: checked ? "✓" : "+"
+                checked: root.comparisonIds.indexOf(result.modelData.id) !== -1
+                Accessible.name: (checked ? "Remove " : "Compare ") + result.modelData.name
+                onClicked: root.selectComparison(result.modelData.id)
+              }
+              Column {
+                id: detail
+                width: parent.width
+                visible: root.showingDetails
+                spacing: Style.space(16)
+                GridLayout {
+                  width: parent.width
+                  columns: width >= Style.space(320) ? 2 : 1
+                  columnSpacing: Style.space(16)
+                  rowSpacing: Style.space(12)
+                  Artwork {
+                    Layout.preferredWidth: detail.width >= Style.space(380) ? Style.space(168) : Style.space(128)
+                    Layout.preferredHeight: width * 87 / 231
+                    imageUrl: result.presentationData.image
+                    title: result.modelData.name
+                  }
+                  Column {
+                    Layout.fillWidth: true
+                    spacing: Style.space(4)
+                    Label { width: parent.width; text: result.modelData.name; font.pixelSize: Math.max(20, Style.font.heading); font.bold: true }
+                    Label { width: parent.width; text: result.presentationData.detail; visible: text !== "" }
+                    Label { text: result.modelData.id; font.pixelSize: Math.max(12, Style.font.caption) }
+                  }
+                }
+                Row {
+                  width: parent.width
+                  spacing: Style.space(8)
+                  Action { width: (parent.width - parent.spacing) / 2; text: root.isFavourite(result.modelData.id) ? "★ Saved" : "☆ Save"; checked: root.isFavourite(result.modelData.id); enabled: root.storageReady; onClicked: root.favourite(result.modelData) }
+                  Action { width: (parent.width - parent.spacing) / 2; text: root.comparisonIds.indexOf(result.modelData.id) !== -1 ? "✓ Selected" : "Compare"; checked: root.comparisonIds.indexOf(result.modelData.id) !== -1; onClicked: root.selectComparison(result.modelData.id) }
+                }
+                PanelSeparator { foreground: root.foreground }
+                Column {
+                  width: parent.width
+                  spacing: Style.space(4)
+                  Label { text: "Saved price · " + result.priceData.region; font.pixelSize: Math.max(12, Style.font.caption) }
+                  Label { width: parent.width; text: result.priceData.amount; font.pixelSize: Math.max(24, Style.font.display); font.bold: true }
+                  Label { text: result.priceData.discount; visible: text !== ""; font.bold: true }
+                  Label { text: "Original price · " + Model.initialPrice(result.modelData); visible: Model.initialPrice(result.modelData) !== "" }
+                  Label { width: parent.width; text: result.priceData.note.replace(/^Saved /, ""); font.pixelSize: Math.max(12, Style.font.caption) }
+                }
+                Row {
+                  width: parent.width
+                  spacing: Style.space(8)
+                  Action { width: (parent.width - parent.spacing) / 2; text: "Open GaugeDB"; emphasized: true; onClicked: Quickshell.execDetached(["xdg-open", Model.links(result.modelData.id).gauge]) }
+                  Action { width: (parent.width - parent.spacing) / 2; text: "Open Steam"; onClicked: Quickshell.execDetached(["xdg-open", Model.links(result.modelData.id).steam]) }
+                }
+                Action {
+                  width: parent.width
+                  text: root.showMoreActions ? "Hide more actions  −" : "More actions  +"
+                  quiet: true
+                  onClicked: root.showMoreActions = !root.showMoreActions
+                }
+                Column {
+                  width: parent.width
+                  visible: root.showMoreActions
+                  spacing: Style.space(8)
+                  Action { width: parent.width; text: "Linux compatibility · ProtonDB"; onClicked: Quickshell.execDetached(["xdg-open", Model.links(result.modelData.id).proton]) }
+                  Action { width: parent.width; text: "Price history · GaugeDB"; onClicked: Quickshell.execDetached(["xdg-open", Model.links(result.modelData.id).history]) }
+                  Action { width: parent.width; text: "Set price alert · GaugeDB"; onClicked: Quickshell.execDetached(["xdg-open", Model.links(result.modelData.id).alerts]) }
+                  Action { width: parent.width; text: "Steam wishlist · GaugeDB"; onClicked: Quickshell.execDetached(["xdg-open", Model.wishlistLink()]) }
+                  Label { width: parent.width; text: "Account actions open in your browser and may require sign-in. The website uses its own store preference."; font.pixelSize: Math.max(12, Style.font.caption) }
+                }
+                PanelSeparator { foreground: root.foreground }
+                GridLayout {
+                  width: parent.width
+                  columns: width >= Style.space(300) ? 2 : 1
+                  columnSpacing: Style.space(24)
+                  rowSpacing: Style.space(16)
+                  Column {
+                    id: activity
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignTop
+                    spacing: Style.space(8)
+                    readonly property var activityData: Model.activityView(result.modelData)
+                    Label { text: "Global activity"; font.pixelSize: Math.max(12, Style.font.caption) }
+                    RowLayout {
+                      width: parent.width
+                      Label { Layout.fillWidth: true; text: "Players" }
+                      Label { text: activity.activityData.players; font.bold: true }
+                    }
+                    RowLayout {
+                      width: parent.width
+                      Label { Layout.fillWidth: true; text: "24h peak" }
+                      Label { text: activity.activityData.peak; font.bold: true }
+                    }
+                    Label { width: parent.width; text: activity.activityData.note; font.pixelSize: Math.max(12, Style.font.caption) }
+                  }
+                  Column {
+                    id: reviews
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignTop
+                    spacing: Style.space(8)
+                    readonly property var reviewData: Model.reviewsView(result.modelData)
+                    Label { text: "Reviews"; font.pixelSize: Math.max(12, Style.font.caption) }
+                    RowLayout {
+                      width: parent.width
+                      Label { Layout.fillWidth: true; text: "Count" }
+                      Label { text: reviews.reviewData.count; font.bold: true }
+                    }
+                    RowLayout {
+                      width: parent.width
+                      Label { Layout.fillWidth: true; text: "Positive" }
+                      Label { text: reviews.reviewData.score; font.bold: true }
+                    }
+                    Label { width: parent.width; text: reviews.reviewData.note; font.pixelSize: Math.max(12, Style.font.caption) }
+                  }
+                }
+                Action {
+                  width: parent.width
+                  text: root.showProvenance ? "Hide observation details  −" : "Observation details  +"
+                  quiet: true
+                  Accessible.description: root.showProvenance ? "Expanded" : "Collapsed"
+                  onClicked: root.showProvenance = !root.showProvenance
+                }
+                Label {
+                  width: parent.width
+                  visible: root.showProvenance
+                  text: "Catalogue observed · " + Model.compactObservation(result.modelData.metadata) + "\n" + root.coverage
+                  font.pixelSize: Math.max(12, Style.font.caption)
+                }
+              }
+            }
+          }
+          }
+          Label {
+            width: parent.width
+            visible: root.games.length > 0
+            text: root.mode === "saved" ? "Stored on this device. Open a game to load its summary." : (root.mode === "deals" ? "Partial coverage · latest 512 saved price observations.\n" : "")
+              + "Saved observations · check Steam before buying."
+            font.pixelSize: Math.max(12, Style.font.caption)
+          }
+        }
+      }
+    }
+  }
+}
