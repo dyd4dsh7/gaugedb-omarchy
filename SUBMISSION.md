@@ -1,5 +1,7 @@
 # Marketplace submission
 
+Issue: https://github.com/omacom/omarchy-plugin-marketplace/issues/11087
+
 Title: `[Plugin]: GaugeDB`
 
 The owner authorized submission on 12 October 2026. This testing release is

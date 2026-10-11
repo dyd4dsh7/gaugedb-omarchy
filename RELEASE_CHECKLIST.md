@@ -26,7 +26,8 @@
 - [x] Rechecked current catalogue, existing submission search and public repository files.
 - [ ] Complete native checks above and record host/version/results.
 - [x] Owner authorized public MIT plugin publication and marketplace submission.
-- [ ] Marketplace issue submission/validation; track the linked issue in SUBMISSION.md.
+- [x] Marketplace issue submitted: [#11087](https://github.com/omacom/omarchy-plugin-marketplace/issues/11087).
+- [ ] Automated marketplace validation and security-baseline result.
 - [ ] Wait for marketplace validation and maintainer approval; repository publication alone is not store listing.
 
 Submission is permitted as a testing release with incomplete native checks disclosed;
