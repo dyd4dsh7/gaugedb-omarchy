@@ -3,7 +3,7 @@
 Search Steam games, browse regional deals, save favourites and compare two games
 from an Omarchy bar panel. Built for **Omarchy Quattro / Omarchy 4** and Quickshell.
 
-**Version 0.2.1 is a testing release. Full Omarchy desktop validation is pending.**
+**Version 0.2.2 is a testing release. Full Omarchy desktop validation is pending.**
 QML lint, native headless smoke checks and the JavaScript regression suite pass;
 full desktop behavior remains unverified.
 
@@ -86,7 +86,9 @@ serialized data is capped at 1,048,576 characters. Offline recovery matches the
 exact query/action/country, preserves original dates and marks observations stale.
 It does not fetch artwork. Cache entries older than 30 days are not reused.
 
-Writes are asynchronous and atomic. Corrupt or unsupported state is preserved;
+The state directory is secured to mode 0700 and the state file to 0600 before
+reads or writes, including existing installations. Unsafe symlink targets or
+permission setup failures disable storage. Writes are asynchronous and atomic. Corrupt or unsupported state is preserved;
 writes are disabled and changes stay in the session. Back up the file before repair.
 Your favourites, recent games and state file should never be committed to this repo.
 

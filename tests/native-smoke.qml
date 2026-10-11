@@ -51,8 +51,8 @@ Item {
           console.log("GAUGEDB_NATIVE_PASS: restart read")
           Qt.quit(); return
         }
-        if (test.mode === "corrupt") {
-          test.check(!panel.storageWritable, "corrupt file disables writes")
+        if (test.mode === "corrupt" || test.mode === "unsafe") {
+          test.check(!panel.storageWritable, "unsafe or corrupt storage disables writes")
           panel.favourite({ id: "steam:620", name: "Portal 2" })
           test.phase = 3; return
         }
@@ -122,7 +122,7 @@ Item {
         Qt.quit(); return
       }
       if (test.phase === 3 && test.ticks > 15) {
-        console.log("GAUGEDB_NATIVE_PASS: corrupt state preserved")
+        console.log("GAUGEDB_NATIVE_PASS: " + test.mode + " state preserved")
         Qt.quit()
       }
     }

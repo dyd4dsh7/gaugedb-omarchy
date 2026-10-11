@@ -29,7 +29,7 @@
 - [ ] Complete native checks above and record host/version/results.
 - [x] Owner authorized public MIT plugin publication and marketplace submission.
 - [x] Marketplace issue submitted: [#11087](https://github.com/omacom/omarchy-plugin-marketplace/issues/11087).
-- [x] Initial automated marketplace validation and security baseline passed; refresh required for 0.2.1.
+- [x] Initial automated marketplace validation and security baseline passed; refresh required for 0.2.2.
 - [ ] Wait for marketplace validation and maintainer approval; repository publication alone is not store listing.
 
 Submission is permitted as a testing release with incomplete native checks disclosed;

@@ -35,7 +35,7 @@ interface are additionally exercised by the real QML engine below.
 ### Actual QML-engine checks
 
 `scripts/native-smoke.sh` copies only public runtime files into a temporary
-Quickshell configuration and uses isolated temporary state. Four fresh processes
+Quickshell configuration and uses isolated temporary state. Five fresh processes
 under headless Weston pass:
 
 - Native delegate creation, required modelData/index, focus restoration, valid/invalid country selection, country filter/empty bindings and the accepted handler.
@@ -48,6 +48,22 @@ The runner fails on assertion errors, missing pass markers, runtime JavaScript
 errors, missing required properties and plugin binding errors. Expected official
 shell warnings from missing Hyprland, import scanning, inherited deprecations and
 headless teardown remain; these are not a clean full-shell runtime claim.
+
+### Local-state confidentiality fix — version 0.2.2
+
+Addresses the maintainer feedback on marketplace issue #11087. A fixed shell
+program creates/repairs the state directory to mode 0700 and state file to 0600
+before FileView receives its path. Directory paths and initial JSON are passed
+as separate arguments. Creation uses umask 077 and noclobber; existing contents
+are retained. Symlink targets and setup failures disable storage instead of
+falling back to publicly readable files.
+
+The native suite runs under umask 022 and checks actual directory/file modes
+following writes, a fresh process and corrupt-file recovery. It deliberately
+makes the prior directory/file modes 0755/0644 and verifies startup repairs them
+to 0700/0600 without losing the favourite/country. A symlinked state directory is
+rejected and the canary contents remain unchanged after an attempted save.
+Atomic updates retain the existing owner-only file mode in the tested Qt runtime.
 
 ## Still unverified
 

@@ -334,11 +334,13 @@ Ui.Panel {
   }
   Timer { id: writeDelay; interval: 200; onTriggered: root.writeState() }
   Process {
-    command: ["mkdir", "-p", "--", root.stateDirectory]
+    // Fixed shell program; paths and initial JSON are separate positional arguments.
+    // Establish confidentiality before FileView reads or performs its atomic writes.
+    command: ["sh", "-c", "set -eu; umask 077; d=$1; f=$d/state.json; [ ! -L \"$d\" ]; mkdir -p -- \"$d\"; chmod 700 -- \"$d\"; if [ ! -e \"$f\" ]; then (set -C; printf \"%s\" \"$2\" > \"$f\"); fi; [ -f \"$f\" ] && [ ! -L \"$f\" ]; chmod 600 -- \"$f\"", "gaugedb-state", root.stateDirectory, Store.encode(Store.empty())]
     running: true
     onExited: function(exitCode, exitStatus) {
       if (exitCode === 0 && exitStatus === 0) stateFile.path = root.stateDirectory + "/state.json"
-      else { root.storageReady = true; root.storageWritable = false; root.storageMessage = "Local storage is unavailable; changes stay in this session." }
+      else { root.storageReady = true; root.storageWritable = false; root.storageMessage = "Private local storage is unavailable; changes stay in this session." }
     }
   }
   FileView {

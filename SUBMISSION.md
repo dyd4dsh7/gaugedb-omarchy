@@ -34,12 +34,16 @@ It uses the host's Quickshell/Qt controls and xdg-open. No API credentials,
 background polling or private account sync. Local state is outside the plugin
 installation and existing user bindings are not edited. Code and bundled GaugeDB
 branding are MIT licensed; game artwork is loaded at runtime from Steam CDN.
-Version 0.2.1 is a testing release. All QML passes full qmllint with zero warnings
+Version 0.2.2 is a testing release. All QML passes full qmllint with zero warnings
 using real Qt/Quickshell/Omarchy imports; no warning category is suppressed.
 37 JavaScript tests / 169 assertions pass. Native headless tests verify bound
 result delegates, focus restoration, country filtering/acceptance, actual state
 writes, fresh-process country/favourite restoration and corrupt-file preservation.
 Public details/search/deals/comparison also pass through Qt's actual HTTP client.
+The maintainer-reported local-state permissions issue is fixed: setup secures
+the directory/file to 0700/0600 before FileView access. Native tests under umask
+022 verify actual modes, repair old 0755/0644 modes without data loss and reject
+symlinked state without modifying its target.
 Full Hyprland lifecycle, desktop themes/layout, actual keyboard/mouse events,
 screen-reader behavior, game artwork/browser handoffs and permission-denied writes
 still need native desktop review. VALIDATION.md records the environment and limits.
