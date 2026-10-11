@@ -1,9 +1,11 @@
 # GaugeDB for Omarchy
 
+<img src="preview.png" width="96" height="96" alt="GaugeDB six-square logo" />
+
 Search Steam games, browse regional deals, save favourites and compare two games
 from an Omarchy bar panel. Built for **Omarchy Quattro / Omarchy 4** and Quickshell.
 
-**Version 0.2.2 is a testing release. Full Omarchy desktop validation is pending.**
+**Version 0.2.3 is a testing release. Full Omarchy desktop validation is pending.**
 QML lint, native headless smoke checks and the JavaScript regression suite pass;
 full desktop behavior remains unverified.
 
@@ -31,13 +33,15 @@ public results and optional artwork. Bun is needed only to run development tests
 Review the code before enabling it. Omarchy plugins run without a sandbox.
 
 ```sh
-omarchy plugin add https://github.com/dyd4dsh7/gaugedb-omarchy
-omarchy plugin validate "$HOME/.config/omarchy/plugins/com.gaugedb.search"
-omarchy plugin enable com.gaugedb.search
+omarchy plugin add https://github.com/dyd4dsh7/gaugedb-omarchy.git --enable
 ```
 
-The installer asks before installing/enabling and refuses an existing plugin
-installation. This plugin does not edit your personal Hyprland bindings.
+Omarchy clones the public repository, validates its root manifest, and enables
+`com.gaugedb.search` after validation. It asks before cloning and lets you choose
+the bar placement. An existing plugin ID is refused rather than overwritten.
+This command installs the current `main` commit; the store's verified snapshot
+is listed separately. This plugin does not edit your personal Hyprland bindings.
+
 Open the GaugeDB bar button, or summon it with:
 
 ```sh
@@ -122,8 +126,10 @@ on a real Omarchy host. Image loading, full shell restart persistence,
 keyboard/accessibility and desktop/390px rendering in both themes remain unverified.
 No preview screenshot is supplied until a real native capture is available.
 
+The square preview is the GaugeDB brand mark, not a native application screenshot.
+
 [SUBMISSION.md](SUBMISSION.md) records the marketplace issue and submission body.
-See the [marketplace submission status](https://github.com/omacom/omarchy-plugin-marketplace/issues?q=GaugeDB).
+See the [marketplace submission status](https://plugins.omarchy.org/plugin.html?id=com.gaugedb.search).
 Repository publication and issue submission do not mean store approval.
 Current checks and their limits are recorded in [VALIDATION.md](VALIDATION.md).
 
