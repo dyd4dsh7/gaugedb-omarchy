@@ -11,3 +11,16 @@ jobs:
         with:
           bun-version: 1.4.2
       - run: bun --no-env-file test
+      - run: bash tests/clipboard-helper.test.sh
+
+  native-input:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Native Qt clipboard and input regression
+        run: >-
+          docker run --rm
+          -v "$GITHUB_WORKSPACE:/plugin:ro"
+          archlinux:base@sha256:4e77cf2ea5f410e6f8be5abf93ccf17ce2436e87a138c167208356711a405dbd
+          bash -lc 'pacman -Sy --noconfirm qt6-declarative gcc pkgconf ttf-dejavu && bash /plugin/scripts/test-clipboard-input.sh'

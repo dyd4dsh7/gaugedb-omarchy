@@ -5,7 +5,7 @@
 Search Steam games, browse regional deals, save favourites and compare two games
 from an Omarchy bar panel. Built for **Omarchy Quattro / Omarchy 4** and Quickshell.
 
-**Version 0.2.3 is a testing release. Full Omarchy desktop validation is pending.**
+**Version 0.2.4 is a testing release. Full Omarchy desktop validation is pending.**
 QML lint, native headless smoke checks and the JavaScript regression suite pass;
 full desktop behavior remains unverified.
 
@@ -25,7 +25,9 @@ Opening those pages does not create an alert or import private wishlist data.
 
 Omarchy Quattro / Omarchy 4 with its Quickshell shell, Qt Quick Controls,
 `Quickshell.Io`, Git and `xdg-open`. These are host dependencies; no separate
-GaugeDB server, API key or account is required. Internet access is needed for new
+GaugeDB server, API key or account is required. Paste additionally requires `wl-paste` from `wl-clipboard`,
+Bash, GNU coreutils (`timeout`, `head`, `base64`) and `iconv`. Typed input continues
+to work if the paste helper is unavailable. Internet access is needed for new
 public results and optional artwork. Bun is needed only to run development tests.
 
 ## Install
@@ -67,6 +69,12 @@ change country.
 Use Save to pin a game (up to 40 favourites). Saved → Recent shows the last 12
 opened games. Select + on two results and press Compare; Clear removes the
 selection. Back restores the current results or saved list without another request.
+Ctrl+V, Shift+Insert and middle-click paste use an isolated helper with a 4 KiB
+byte cap, 64 MiB address-space cap and a one-second total deadline (forced kill
+after another 200 ms). Only valid UTF-8 within the field limit is inserted.
+Clipboard payloads are never loaded merely because the clipboard changes.
+Right-click native paste is disabled; use these explicit paste gestures.
+
 Tab moves through controls and Escape closes the panel. Requests time out after
 12 seconds; Retry starts a new request. Replaced or cancelled replies are ignored.
 
@@ -144,6 +152,18 @@ Git/Qt/Quickshell host dependencies and jq. It copies runtime files to an isolat
 temporary config/state path and removes those test files afterward; no user state
 is changed. Its live network case reads public catalogue data. It does not open
 browser pages, create alerts or authenticate accounts.
+
+Clipboard regression checks (Linux):
+
+```sh
+bash tests/clipboard-helper.test.sh
+bash scripts/test-clipboard-input.sh
+```
+
+The native input test needs a C++ compiler, pkg-config and Qt 6 development/test
+libraries. It uses the offscreen platform and a controlled clipboard provider,
+so it does not read or replace the desktop clipboard. The helper tests use a
+private fake provider, not real clipboard content.
 
 ## Later work
 

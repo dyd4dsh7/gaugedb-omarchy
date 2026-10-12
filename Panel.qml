@@ -60,6 +60,7 @@ Ui.Panel {
 
   function cancel() {
     if (busy) { message = "Request cancelled."; canRetry = true }
+    clipboardPaste.cancel()
     serial += 1
     deadline.stop()
     artworkDeadline.stop()
@@ -445,8 +446,12 @@ Ui.Panel {
     onActiveFocusChanged: if (activeFocus) root.reveal(this)
     Keys.onEscapePressed: root.close()
   }
-  component Field: Controls.TextField {
+  ClipboardPaste { id: clipboardPaste; objectName: "gaugedb-clipboard-paste" }
+
+  component Field: ClipboardField {
     id: field
+    onPasteRequested: clipboardPaste.request(field)
+    onPasteCancelled: clipboardPaste.cancel(field)
     property bool scrollIntoView: true
     property real surfaceRadius: Style.cornerRadius
     property var escapeAction: function() { root.close() }
@@ -459,7 +464,7 @@ Ui.Panel {
     font.pixelSize: Math.max(14, root.fontRoles.subtitle)
     implicitHeight: 44
     selectByMouse: true
-    leftPadding: Style.space(12)
+    contentInset: Style.space(12)
     rightPadding: Style.space(12)
     background: Rectangle {
       radius: field.surfaceRadius
@@ -488,6 +493,7 @@ Ui.Panel {
       Keys.onEscapePressed: root.close()
       Controls.Popup {
         id: countryPopup
+        objectName: "gaugedb-country-popup"
         parent: viewport
         width: Math.min(Style.space(360), viewport.width)
         x: Math.max(0, Math.min(viewport.width - width, storeTrigger.mapToItem(viewport, storeTrigger.width, 0).x - width))
@@ -503,7 +509,7 @@ Ui.Panel {
           countryChoices.currentIndex = Math.max(0, countryChoices.model.findIndex(function(item) { return item.code === root.countryCode }))
           Qt.callLater(function() { countryChoices.positionViewAtIndex(countryChoices.currentIndex, ListView.Contain); countrySearch.forceActiveFocus() })
         }
-        onClosed: { root.choosingCountry = false; if (root.opened) storeTrigger.forceActiveFocus() }
+        onClosed: { clipboardPaste.cancel(countrySearch); root.choosingCountry = false; if (root.opened) storeTrigger.forceActiveFocus() }
         background: Rectangle {
           color: root.popupRoles.background
           radius: Style.cornerRadius

@@ -9,9 +9,11 @@ trap 'rm -rf "$test_root"' EXIT
 mkdir -p "$test_root/config" "$test_root/runtime" "$test_root/state" "$test_root/imports"
 chmod 700 "$test_root/runtime"
 mkdir "$test_root/config/plugin"
-for file in BarWidget.qml Panel.qml BrandMark.qml Model.js Store.js Countries.js; do
+for file in BarWidget.qml Panel.qml ClipboardField.qml ClipboardPaste.qml BrandMark.qml Model.js Store.js Countries.js; do
   cp "$plugin_root/$file" "$test_root/config/plugin/$file"
 done
+mkdir "$test_root/config/plugin/scripts"
+cp "$plugin_root/scripts/clipboard-paste.sh" "$test_root/config/plugin/scripts/clipboard-paste.sh"
 cp -R "$plugin_root/assets" "$test_root/config/plugin/assets"
 sed 's|import "../" as Plugin|import "./plugin" as Plugin|' "$plugin_root/tests/native-smoke.qml" > "$test_root/config/shell.qml"
 ln -s "$OMARCHY_PATH/shell" "$test_root/imports/qs"
@@ -19,7 +21,7 @@ export QML_IMPORT_PATH="$test_root/imports${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
 export XDG_RUNTIME_DIR="${GAUGEDB_WAYLAND_RUNTIME:-$test_root/runtime}"
 export XDG_STATE_HOME="$test_root/state" XDG_CONFIG_HOME="$test_root/config"
 export GAUGEDB_NATIVE_TEST=1
-for mode in write read corrupt unsafe network; do
+for mode in write read corrupt unsafe network clipboard; do
   export GAUGEDB_TEST_MODE="$mode"
   # Simulate an earlier permissive installation; the plugin must repair metadata.
   if [[ $mode == read ]]; then chmod 755 "$test_root/state/gaugedb-omarchy"; chmod 644 "$test_root/state/gaugedb-omarchy/state.json"; fi

@@ -87,6 +87,7 @@ function harness(failMethod = "") {
     Store,
     Countries,
     localData: Store.empty(),
+    clipboardPaste: { cancel() {} },
     storageReady: true,
     storageWritable: true,
     storageWriting: false,

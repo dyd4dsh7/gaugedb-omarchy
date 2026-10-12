@@ -42,6 +42,15 @@ Item {
       if (test.phase === 0) {
         test.check(panel.fontRoles.body > 0 && panel.fontRoles.caption > 0, "native font roles")
         test.check(widget.barMetrics.statusSlot > 0, "native bar roles")
+        if (test.mode === "clipboard") {
+          let reader = test.find(panel, "gaugedb-clipboard-paste", [])
+          let input = test.find(panel, "gaugedb-country-search", [])
+          test.check(reader && input, "clipboard controller and field")
+          input.text = ""
+          reader.process.command = ["/missing-gaugedb-clipboard-command"]
+          input.paste()
+          test.phase = 50; return
+        }
         if (test.mode === "network") {
           panel.call("get_game", { id: "steam:620", country: "NZ" })
           test.phase = 4; return
@@ -70,6 +79,30 @@ Item {
         panel.offline = true
         panel.games = [{ id: "steam:620", name: "Portal 2" }, { id: "steam:730", name: "Counter-Strike 2" }]
         test.phase = 1; return
+      }
+      if (test.phase >= 50) {
+        let reader = test.find(panel, "gaugedb-clipboard-paste", [])
+        let input = test.find(panel, "gaugedb-country-search", [])
+        if (reader.busy || input.pasteBusy) return
+        if (test.phase === 50) {
+          test.check(input.text === "" && input.pasteMessage.length > 0, "failed startup recovers")
+          reader.process.command = ["sh", "-c", "sleep 0.1; printf NZ"]
+          input.paste()
+          test.phase = 51; return
+        }
+        if (test.phase === 51) {
+          test.check(input.text === "NZ", "paste retry receives complete output")
+          input.text = ""
+          reader.process.command = ["sh", "-c", "sleep 0.4; printf stale"]
+          input.paste()
+          let popup = test.find(panel, "gaugedb-country-popup", [])
+          test.check(popup, "country popup")
+          popup.closed()
+          test.phase = 52; return
+        }
+        test.check(input.text === "", "picker close cancels late paste")
+        console.log("GAUGEDB_NATIVE_PASS: clipboard startup recovery, retry and picker-close cancellation")
+        Qt.quit(); return
       }
       if (test.phase >= 4) {
         if (panel.busy) return

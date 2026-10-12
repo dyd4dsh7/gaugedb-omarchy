@@ -65,6 +65,48 @@ to 0700/0600 without losing the favourite/country. A symlinked state directory i
 rejected and the canary contents remain unchanged after an attempted save.
 Atomic updates retain the existing owner-only file mode in the tested Qt runtime.
 
+### Clipboard boundary fix — version 0.2.4
+
+Addresses issue #11099 comment 6114331400. Qt 6.12 TextInput's clipboard-change
+callback eagerly calls `mimeData->text()`. A native retrieval-counter probe
+observed one payload read without any paste gesture in the old TextField,
+and zero in the new production ClipboardField. Plain-text TextArea retains
+native editing/IME/accessibility but its availability check inspects MIME formats
+without retrieving the payload.
+
+Keyboard Paste (including Ctrl+V and Shift+Insert), reflected zero-argument paste
+and middle-button primary selection all route to an external helper. Native
+context-menu paste is disabled. The whole process group has a one-second timeout
+plus a 200 ms forced-kill grace period. The helper has a 64 MiB address-space
+limit, reads at most 4097 bytes to detect overflow, rejects payloads over 4096
+bytes, invalid UTF-8 and NULs, and emits no text until validation completes.
+Clipboard bytes stay in bounded memory; no temporary clipboard files are written.
+Insertion additionally rejects text exceeding the field's 80/100 UTF-16-unit
+limit. Closing the picker, moving focus or cancelling a panel request discards
+pending paste. Failed helper startup recovers rather than leaving paste disabled.
+
+Verified after the independent boundary/compatibility review:
+
+- Strict QML lint and 37 JavaScript regression tests pass.
+- Actual Qt production-field checks: zero passive payload reads, Ctrl+V,
+  Shift+Insert, reflected paste, middle-click placement, normal/oversized paste,
+  selection replacement, Return, native Unicode IME, editable accessibility,
+  typing/IME length limits, retained typed undo and horizontal caret visibility.
+- Native Linux helper cases pass for normal text, Unicode, primary selection,
+  oversized data, an endless trickle stream and invalid UTF-8. Unsafe transfers
+  produce no accepted output.
+- Headless Quickshell smoke checks pass for failed helper startup/retry and
+  picker-close cancellation, alongside the prior state/network regressions.
+
+The memory-capped helper was tested on native Linux ARM; Rosetta's own mappings
+cannot fit the intentional address-space limit. The Qt input probes used the
+emulated Linux Qt 6.12 environment. Native Linux CI repeats the helper and input
+checks. Selection replacement retains native undo history but its remove/insert
+operation uses two native undo steps. A fully hostile foreign Wayland producer
+was not run; the native retrieval counter and isolated streaming-provider tests
+are the focused substitute. Other host-owned editable TextFields are outside
+this plugin fix; it does not patch Qt globally.
+
 ## Still unverified
 
 Actual Hyprland install/enable/summon/hide/disable/remove lifecycle, shell restart,
