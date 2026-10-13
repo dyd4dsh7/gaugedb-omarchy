@@ -11,6 +11,8 @@ import qs.Ui as Ui
 import "Model.js" as Model
 import "Store.js" as Store
 import "Countries.js" as Countries
+import "Watch.js" as Watch
+import "History.js" as History
 
 Ui.Panel {
   id: root
@@ -49,6 +51,12 @@ Ui.Panel {
   property bool offline: false
   property bool listOffline: false
   property bool showMoreActions: false
+  property bool showPriceHistory: false
+  property var priceHistoryData: ({points:[],currency:"",actualStoreCountry:"",coverage:""})
+  property string historyMessage: ""
+  property bool showHelp: false
+  property bool showSettings: false
+  property bool startApplied: false
   readonly property bool showingDetails: mode === "details" || mode === "compare"
   readonly property string stateDirectory: (Quickshell.env("XDG_STATE_HOME").charAt(0) === "/" ? Quickshell.env("XDG_STATE_HOME") : Quickshell.env("HOME") + "/.local/state") + "/gaugedb-omarchy"
   readonly property string fontFamily: root.hostBar ? root.hostBar.fontFamily : root.fontRoles.family
@@ -58,9 +66,58 @@ Ui.Panel {
   readonly property var popupRoles: Commons.Color.popups
   readonly property color foreground: root.popupRoles.text
 
+  function loadPriceHistory(id) {
+    if (historyRequest.busy || !Model.gameId(id)) return
+    showPriceHistory = true
+    historyMessage = "Loading saved price observations…"
+    historyRequest.request(["history", id.slice(6), countryCode])
+  }
+  function toggleWatch(game) {
+    if (!storageReady) return
+    let watches = localData.watches || []
+    let old = watches.find(function(item) { return item.id === game.id && item.country === root.countryCode })
+    if (old) watches = watches.filter(function(item) { return item !== old })
+    else {
+      let quote = Watch.quote(game, countryCode, Date.now())
+      if (!quote) { message = "A fresh price from this exact country is needed to start a watch."; return }
+      if (quote.amount === 0) { message = "This saved price is already free; there is no lower price to watch."; return }
+      if (watches.length >= 10) { message = "Remove a watch before adding another (10 maximum)."; return }
+      watches = watches.concat([{id: game.id, name: game.name, country: countryCode, currency: quote.currency, baseline: quote.amount, last: quote.amount, observedAt: quote.at}])
+    }
+    localData = Object.assign({}, localData, {watches: watches})
+    persist()
+  }
+  function importWishlist() {
+    if (!storageReady || wishlistRequest.busy) return
+    let id = steamId.text.trim()
+    if (!/^[0-9]{17}$/.test(id)) { message = "Enter a 17-digit individual SteamID64."; return }
+    message = "Reading public Steam wishlist…"
+    wishlistRequest.request(["wishlist", id])
+  }
+  function dismiss() {
+    if (showHelp) showHelp = false
+    else if (showSettings) showSettings = false
+    else root.close()
+  }
+  function setStartView(view) {
+    if (["search", "saved", "deals"].indexOf(view) === -1) return
+    localData = Object.assign({}, localData, { startView: view })
+    persist()
+  }
+  function applyStartView() {
+    if (startApplied || !storageReady || !opened) return
+    startApplied = true
+    let view = localData.startView || "search"
+    if (view === "saved") root.saved()
+    else if (view === "deals") root.deals()
+  }
   function cancel() {
     if (busy) { message = "Request cancelled."; canRetry = true }
     clipboardPaste.cancel()
+    wishlistRequest.cancel()
+    historyRequest.cancel()
+    showPriceHistory = false
+    priceHistoryData = ({points:[],currency:"",actualStoreCountry:"",coverage:""})
     serial += 1
     deadline.stop()
     artworkDeadline.stop()
@@ -172,9 +229,10 @@ Ui.Panel {
       Qt.callLater(function() { if (generation === root.serial) root.fetchPresentation() })
     }
   }
-  function search() { mode = "search"; selectedId = ""; call("search_games", { query: query.text }) }
-  function deals() { mode = "deals"; selectedId = ""; call("find_deals", { country: countryCode }) }
+  function search() { startApplied = true; mode = "search"; selectedId = ""; call("search_games", { query: query.text }) }
+  function deals() { startApplied = true; mode = "deals"; selectedId = ""; call("find_deals", { country: countryCode }) }
   function details(id) {
+    startApplied = true
     if (mode !== "details" && mode !== "compare") {
       listGames = games
       listCoverage = coverage
@@ -257,6 +315,7 @@ Ui.Panel {
       localData = storageDirty ? Store.mergeLoaded(loaded, localData) : loaded
       if (localData.country && Countries.supported(localData.country) && countryCode !== localData.country) { countryCode = localData.country; countryChanged() }
       storageReady = true
+      root.applyStartView()
       if (storageDirty) persist()
       if (mode === "saved") saved()
     } catch (error) {
@@ -279,6 +338,7 @@ Ui.Panel {
   }
   function isFavourite(id) { return localData.favourites.some(function(game) { return game.id === id }) }
   function saved() {
+    startApplied = true
     cancel()
     mode = "saved"
     offline = false
@@ -321,13 +381,46 @@ Ui.Panel {
     else if (top + item.height > scroll.contentY + scroll.height)
       scroll.contentY = Math.max(0, top + item.height - scroll.height)
   }
-  onOpenedChanged: { if (!opened) cancel(); else if (games.length && !offline) enrich(games) }
+  onOpenedChanged: { if (!opened) cancel(); else { root.applyStartView(); if (games.length && !offline) enrich(games) } }
   onSettingsChanged: {
     let code = String(root.setting("country", "NZ")).trim().toUpperCase()
     if (storageReady && Countries.supported(code) && code !== countryCode) root.setCountry(code)
   }
   Component.onDestruction: cancel()
 
+  PublicRequest {
+    id: historyRequest
+    objectName: "gaugedb-history-request"
+    onFinished: function(value, success) {
+      if (!success) { root.historyMessage = "Price history is unavailable."; return }
+      try { root.priceHistoryData = History.decode(value, root.selectedId, root.countryCode); root.historyMessage = "" }
+      catch(error) { root.historyMessage = "Unexpected price history; no chart shown." }
+    }
+  }
+  WatchService {
+    id: watchService
+    objectName: "gaugedb-watch-service"
+    enabled: root.storageReady && root.localData.backgroundWatches === true
+    watches: root.localData.watches || []
+    onUpdated: function(values) { root.localData = Object.assign({}, root.localData, {watches: values}); root.persist() }
+  }
+  PublicRequest {
+    id: wishlistRequest
+    objectName: "gaugedb-wishlist-request"
+    onFinished: function(value, success) {
+      if (!success) { root.message = "Steam wishlist is private, empty without public data, or unavailable. Existing saved games kept."; return }
+      try {
+        let result = JSON.parse(value)
+        if (!Array.isArray(result.ids) || result.ids.length > 40 || !Number.isInteger(result.total) || result.total < result.ids.length || result.ids.some(function(id) { return !Model.gameId(id) })) throw new Error("Invalid wishlist")
+        let games = result.ids.map(function(id) { return {id: id, name: "Steam app " + id.slice(6)} })
+        root.localData = Object.assign({}, root.localData, {wishlist: games})
+        root.persist()
+        root.savedSection = "wishlist"
+        root.saved()
+        root.message = result.total > games.length ? "Showing the first 40 of " + result.total + " public wishlist games. Open one to load its saved catalogue name." : "Imported " + games.length + " public wishlist games. Open one for details."
+      } catch(error) { root.message = "Steam returned an unexpected wishlist; existing saved games kept." }
+    }
+  }
   Timer {
     id: deadline
     interval: 12000
@@ -444,7 +537,7 @@ Ui.Panel {
     }
     Accessible.name: text
     onActiveFocusChanged: if (activeFocus) root.reveal(this)
-    Keys.onEscapePressed: root.close()
+    Keys.onEscapePressed: root.dismiss()
   }
   ClipboardPaste { id: clipboardPaste; objectName: "gaugedb-clipboard-paste" }
 
@@ -454,7 +547,7 @@ Ui.Panel {
     onPasteCancelled: clipboardPaste.cancel(field)
     property bool scrollIntoView: true
     property real surfaceRadius: Style.cornerRadius
-    property var escapeAction: function() { root.close() }
+    property var escapeAction: function() { root.dismiss() }
     palette.base: Commons.Color.background
     palette.text: root.popupRoles.text
     palette.highlight: Commons.Color.accent
@@ -490,7 +583,16 @@ Ui.Panel {
     Item {
       id: viewport
       anchors.fill: parent
-      Keys.onEscapePressed: root.close()
+      Keys.onEscapePressed: root.dismiss()
+      Keys.onPressed: function(event) {
+        if (event.key === Qt.Key_F1 || (!query.activeFocus && !countrySearch.activeFocus && event.text === "?")) {
+          root.showHelp = !root.showHelp
+          event.accepted = true
+        } else if (!query.activeFocus && !countrySearch.activeFocus && event.key === Qt.Key_Slash && root.mode === "search") {
+          query.forceActiveFocus()
+          event.accepted = true
+        }
+      }
       Controls.Popup {
         id: countryPopup
         objectName: "gaugedb-country-popup"
@@ -614,6 +716,51 @@ Ui.Panel {
               onClicked: countryPopup.opened ? countryPopup.close() : countryPopup.open()
             }
           }
+          RowLayout {
+            width: parent.width
+            Action { text: "Options"; quiet: true; checked: root.showSettings; onClicked: root.showSettings = !root.showSettings }
+            Item { Layout.fillWidth: true }
+            Action { text: "?"; quiet: true; checked: root.showHelp; Accessible.name: "Keyboard help"; onClicked: root.showHelp = !root.showHelp }
+          }
+          Column {
+            width: parent.width
+            visible: root.showSettings
+            spacing: Style.space(8)
+            Field { id: steamId; objectName: "gaugedb-steam-id"; width: parent.width; maximumLength: 17; placeholderText: "SteamID64 (public wishlist)"; Accessible.name: "SteamID64 for public wishlist import" }
+            Action { text: wishlistRequest.busy ? "Importing…" : "Import public wishlist"; enabled: root.storageReady && !wishlistRequest.busy; onClicked: root.importWishlist() }
+            Label { width: parent.width; text: "Reads only public wishlist IDs from Steam; your Steam ID is not saved."; font.pixelSize: Math.max(12, root.fontRoles.caption) }
+            Action {
+              width: parent.width
+              text: root.localData.backgroundWatches === true ? "Background watches · on" : "Background watches · off"
+              checked: root.localData.backgroundWatches === true
+              enabled: root.storageReady
+              onClicked: { root.localData = Object.assign({}, root.localData, {backgroundWatches: root.localData.backgroundWatches !== true}); root.persist() }
+            }
+            Label { width: parent.width; text: "Opt-in checks every 30 minutes for up to 10 watched games. Notifications use saved price observations, not live Steam quotes."; font.pixelSize: Math.max(12, root.fontRoles.caption) }
+            Action { text: "Check watches now"; enabled: root.storageReady && (root.localData.watches || []).length > 0; onClicked: watchService.check() }
+            Label { width: parent.width; visible: watchService.status !== ""; text: watchService.status }
+            Label { text: "Open in" }
+            Row {
+              width: parent.width
+              spacing: Style.space(8)
+              Repeater {
+                model: [{ value: "search", label: "Games" }, { value: "saved", label: "Saved" }, { value: "deals", label: "Deals" }]
+                Action {
+                  required property var modelData
+                  width: (parent.width - Style.space(16)) / 3
+                  text: modelData.label
+                  checked: (root.localData.startView || "search") === modelData.value
+                  onClicked: root.setStartView(modelData.value)
+                }
+              }
+            }
+          }
+          Label {
+            width: parent.width
+            visible: root.showHelp
+            text: "Enter · search or open the focused game\nDown / Up · navigate results\n/ · focus game search\nF1 or ? · toggle this help\nTab / Shift+Tab · move between controls\nEscape · dismiss help, options or panel\nCtrl+V / Shift+Insert · paste\nStore · search countries by name or code"
+            Accessible.name: "Keyboard shortcuts"
+          }
           Label { width: parent.width; text: root.storageMessage; visible: text !== ""; font.pixelSize: Math.max(12, root.fontRoles.caption) }
           Ui.PanelSeparator { foreground: root.foreground }
           Row {
@@ -654,8 +801,9 @@ Ui.Panel {
             width: parent.width
             visible: root.mode === "saved"
             spacing: Style.space(8)
-            Action { width: (parent.width - parent.spacing) / 2; text: "Favourites"; checked: root.savedSection === "favourites"; onClicked: { root.savedSection = "favourites"; root.saved() } }
-            Action { width: (parent.width - parent.spacing) / 2; text: "Recent"; checked: root.savedSection === "recent"; onClicked: { root.savedSection = "recent"; root.saved() } }
+            Action { width: (parent.width - parent.spacing * 2) / 3; text: "Favourites"; checked: root.savedSection === "favourites"; onClicked: { root.savedSection = "favourites"; root.saved() } }
+            Action { width: (parent.width - parent.spacing * 2) / 3; text: "Recent"; checked: root.savedSection === "recent"; onClicked: { root.savedSection = "recent"; root.saved() } }
+            Action { width: (parent.width - parent.spacing * 2) / 3; text: "Wishlist"; checked: root.savedSection === "wishlist"; onClicked: { root.savedSection = "wishlist"; root.saved() } }
           }
           RowLayout {
             width: parent.width
@@ -698,7 +846,7 @@ Ui.Panel {
             visible: root.games.length > 0 && !root.showingDetails
             Label {
               Layout.fillWidth: true
-              text: root.mode === "deals" ? "Regional deals" : root.mode === "saved" ? (root.savedSection === "recent" ? "Recent games" : "Favourites") : "Search results"
+              text: root.mode === "deals" ? "Regional deals" : root.mode === "saved" ? (root.savedSection === "wishlist" ? "Public wishlist" : root.savedSection === "recent" ? "Recent games" : "Favourites") : "Search results"
               font.pixelSize: Math.max(12, root.fontRoles.caption)
             }
             Label { text: String(root.games.length); font.pixelSize: Math.max(12, root.fontRoles.caption) }
@@ -849,6 +997,8 @@ Ui.Panel {
                   Column {
                     id: activity
                     Layout.fillWidth: true
+                    Layout.preferredWidth: 0
+                    Layout.minimumWidth: 0
                     Layout.alignment: Qt.AlignTop
                     spacing: Style.space(8)
                     readonly property var activityData: Model.activityView(result.modelData)
@@ -868,6 +1018,8 @@ Ui.Panel {
                   Column {
                     id: reviews
                     Layout.fillWidth: true
+                    Layout.preferredWidth: 0
+                    Layout.minimumWidth: 0
                     Layout.alignment: Qt.AlignTop
                     spacing: Style.space(8)
                     readonly property var reviewData: Model.reviewsView(result.modelData)
@@ -884,6 +1036,27 @@ Ui.Panel {
                     }
                     Label { width: parent.width; text: reviews.reviewData.note; font.pixelSize: Math.max(12, root.fontRoles.caption) }
                   }
+                }
+                Action {
+                  width: parent.width
+                  visible: root.mode === "details"
+                  text: historyRequest.busy ? "Loading history…" : root.showPriceHistory ? "Hide price history" : "Price history"
+                  enabled: !historyRequest.busy
+                  onClicked: root.showPriceHistory ? root.showPriceHistory = false : root.loadPriceHistory(result.modelData.id)
+                }
+                Label { width: parent.width; visible: root.mode === "details" && root.showPriceHistory && root.historyMessage !== ""; text: root.historyMessage }
+                Action {
+                  width: parent.width
+                  visible: root.mode === "details" && root.showPriceHistory && root.historyMessage !== ""
+                  text: "Open web price history"
+                  onClicked: Quickshell.execDetached(["xdg-open", Model.links(result.modelData.id).history])
+                }
+                PriceHistory { width: parent.width; visible: root.mode === "details" && root.showPriceHistory && root.historyMessage === ""; dataset: root.priceHistoryData; foreground: root.foreground; fontFamily: root.fontFamily }
+                Action {
+                  width: parent.width
+                  text: (root.localData.watches || []).some(function(item) { return item.id === result.modelData.id && item.country === root.countryCode }) ? "Remove local price watch" : "Watch for a lower saved price"
+                  enabled: root.storageReady
+                  onClicked: root.toggleWatch(result.modelData)
                 }
                 Action {
                   width: parent.width

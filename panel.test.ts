@@ -88,7 +88,12 @@ function harness(failMethod = "") {
     Countries,
     localData: Store.empty(),
     clipboardPaste: { cancel() {} },
+    wishlistRequest: { cancel() {} },
+    historyRequest: { cancel() {} },
     storageReady: true,
+    startApplied: false,
+    showHelp: false,
+    showSettings: false,
     storageWritable: true,
     storageWriting: false,
     storageDirty: false,
@@ -144,6 +149,9 @@ function harness(failMethod = "") {
   return {
     state: state as typeof state &
       Record<
+        | "setStartView"
+        | "applyStartView"
+        | "dismiss"
         | "search"
         | "cancel"
         | "details"
@@ -380,4 +388,35 @@ describe("Omarchy panel request methods", () => {
     expect(state.games).toHaveLength(0);
     expect(state.storageWritable).toBe(true);
   });
+});
+
+test("starting view waits for storage and never overrides an active user search", () => {
+  const { state, requests } = harness();
+  state.storageReady = false;
+  state.localData.startView = "deals";
+  state.applyStartView();
+  expect(requests).toHaveLength(0);
+  state.storageReady = true;
+  state.applyStartView();
+  expect(state.mode).toBe("deals");
+  expect(requests).toHaveLength(1);
+  state.search();
+  state.applyStartView();
+  expect(state.mode).toBe("search");
+  expect(requests).toHaveLength(2);
+});
+
+test("invalid starting preferences are ignored and help dismisses before the panel", () => {
+  const { state } = harness();
+  state.setStartView("javascript:");
+  expect(state.localData.startView).toBe("");
+  state.setStartView("saved");
+  expect(state.localData.startView).toBe("saved");
+  state.showHelp = true;
+  state.showSettings = true;
+  state.dismiss();
+  expect(state.showHelp).toBe(false);
+  expect(state.showSettings).toBe(true);
+  state.dismiss();
+  expect(state.showSettings).toBe(false);
 });

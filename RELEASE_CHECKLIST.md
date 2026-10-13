@@ -12,7 +12,7 @@
 - [x] Headless Wayland/Quickshell component loading attempted; see VALIDATION.md.
 - [x] All QML passes full qmllint with zero warnings using real host imports.
 - [ ] Validate the complete shell lifecycle on the actual Omarchy desktop.
-- [ ] Install, enable, summon/hide, disable/re-enable, restart shell and remove.
+- [x] Install, enable, summon/hide, disable/re-enable, restart shell, remove and exact-snapshot reinstall in ARM UTM; saved state preserved.
 - [ ] Search, deals, details and comparison; missing/partial data and long titles.
 - [ ] Country dropdown search, no matches, arrows, Enter, Escape, outside click and focus return.
 - [ ] Favourites/recent, Back after removal, persisted country and restart persistence.
@@ -29,8 +29,8 @@
 - [ ] Complete native checks above and record host/version/results.
 - [x] Owner authorized public MIT plugin publication and marketplace submission.
 - [x] Marketplace issue submitted: [#11087](https://github.com/omacom/omarchy-plugin-marketplace/issues/11087).
-- [x] Initial automated marketplace validation and security baseline passed; refresh required for 0.2.2.
-- [ ] Wait for marketplace validation and maintainer approval; repository publication alone is not store listing.
+- [x] Version 0.2.4 compatibility and security baseline passed at `0c6ce326582dc26b408cc1356bbb7424f1eaa0a1`.
+- [x] Version 0.2.4 approved and published via [update #11099](https://github.com/omacom/omarchy-plugin-marketplace/issues/11099). Subsequent code changes need their own exact-commit verification.
 
 Submission is permitted as a testing release with incomplete native checks disclosed;
 these unchecked items remain release validation work and are not claimed complete.

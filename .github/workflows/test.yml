@@ -12,6 +12,7 @@ jobs:
           bun-version: 1.4.2
       - run: bun --no-env-file test
       - run: bash tests/clipboard-helper.test.sh
+      - run: python3 tests/public-fetch.test.py
 
   native-input:
     runs-on: ubuntu-latest

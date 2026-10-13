@@ -42,6 +42,16 @@ Item {
       if (test.phase === 0) {
         test.check(panel.fontRoles.body > 0 && panel.fontRoles.caption > 0, "native font roles")
         test.check(widget.barMetrics.statusSlot > 0, "native bar roles")
+        if (test.mode === "features") {
+          let wishlist = test.find(panel, "gaugedb-wishlist-request", [])
+          let input = test.find(panel, "gaugedb-steam-id", [])
+          test.check(wishlist && input, "native wishlist controls")
+          panel.favourite({id:"steam:620",name:"Portal 2"})
+          input.text = "76561197960265729"
+          wishlist.process.command = ["printf", "%s", JSON.stringify({ids:["steam:730","steam:440"],total:2})]
+          panel.importWishlist()
+          test.phase = 60; return
+        }
         if (test.mode === "clipboard") {
           let reader = test.find(panel, "gaugedb-clipboard-paste", [])
           let input = test.find(panel, "gaugedb-country-search", [])
@@ -80,7 +90,49 @@ Item {
         panel.games = [{ id: "steam:620", name: "Portal 2" }, { id: "steam:730", name: "Counter-Strike 2" }]
         test.phase = 1; return
       }
-      if (test.phase >= 50) {
+      if (test.phase >= 60) {
+        let wishlist = test.find(panel, "gaugedb-wishlist-request", [])
+        let history = test.find(panel, "gaugedb-history-request", [])
+        let watches = test.find(panel, "gaugedb-watch-service", [])
+        test.check(wishlist && history && watches, "native feature services")
+        if (test.phase === 60) {
+          if (wishlist.busy || panel.localData.wishlist.length !== 2) return
+          test.check(panel.isFavourite("steam:620"), "wishlist preserves favourites")
+          panel.countryCode = "NZ"
+          panel.selectedId = "steam:620"
+          panel.mode = "details"
+          panel.games = [{id:"steam:620",name:"Portal 2"}]
+          history.process.command = ["printf", "%s", JSON.stringify({gameId:"steam:620",requestedCountry:"NZ",actualStoreCountry:"NZ",coverage:"Synthetic native test observations",points:[{at:new Date().toISOString(),finalMinor:499,currency:"NZD",timeBasis:"observed"}]})]
+          panel.loadPriceHistory("steam:620")
+          test.phase = 61; return
+        }
+        if (test.phase === 61) {
+          if (history.busy || panel.priceHistoryData.points.length !== 1) return
+          panel.localData = Object.assign({}, panel.localData, {watches:[{id:"steam:620",name:"Portal 2",country:"NZ",currency:"NZD",baseline:999,last:999,observedAt:Date.now()-60000}]})
+          watches.request.process.command = ["printf", "%s", JSON.stringify({jsonrpc:"2.0",id:1,result:{structuredContent:{coverage:"Synthetic test quote",games:[{id:"steam:620",name:"Portal 2",price:{status:"priced",requestedCountry:"NZ",actualStoreCountry:"NZ",currency:"NZD",finalMinor:499,observation:{at:new Date().toISOString(),freshness:"fresh"}}}]}}})]
+          watches.check()
+          test.phase = 62; return
+        }
+        if (test.phase === 62) {
+          if (watches.request.busy || panel.localData.watches[0].last !== 499) return
+          panel.localData = Object.assign({}, panel.localData, {backgroundWatches:true})
+          watches.notify.command = ["/missing-gaugedb-notification-command"]
+          watches.notifications = ["Native test notification"]
+          watches.sendNotification()
+          test.phase = 63; return
+        }
+        if (watches.notifications.length) return
+        test.check(watches.status.indexOf("unavailable") >= 0, "failed notification startup recovers")
+        panel.localData = Object.assign({}, panel.localData, {backgroundWatches:false})
+        test.check(!watches.poll.running, "background opt-out stops polling")
+        panel.setStartView("saved")
+        panel.showHelp = true
+        panel.dismiss()
+        test.check(!panel.showHelp && panel.localData.startView === "saved", "native options and help")
+        console.log("GAUGEDB_NATIVE_PASS: wishlist isolation, history, local watch, notification recovery and options")
+        Qt.quit(); return
+      }
+      if (test.phase >= 50 && test.phase < 60) {
         let reader = test.find(panel, "gaugedb-clipboard-paste", [])
         let input = test.find(panel, "gaugedb-country-search", [])
         if (reader.busy || input.pasteBusy) return

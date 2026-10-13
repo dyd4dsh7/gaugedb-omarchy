@@ -73,7 +73,14 @@ int main(int argc,char** argv) {
  bool scroll=item->property("cursorRectangle").toRectF().x()<=item->width();
  QTest::keyClick(&window,Qt::Key_Home); app.processEvents();
  bool home=item->property("cursorRectangle").toRectF().x()>=0;
+ QQuickItem nextField(window.contentItem()); nextField.setActiveFocusOnTab(true); nextField.setSize({200,40}); nextField.setY(50);
+ item->forceActiveFocus(); QString beforeTab=item->property("text").toString();
+ QTest::keyClick(&window,Qt::Key_Tab); app.processEvents();
+ bool tabFocus=nextField.hasActiveFocus() && item->property("text").toString()==beforeTab;
+ QTest::keyClick(&window,Qt::Key_Backtab,Qt::ShiftModifier); app.processEvents();
+ bool backtabFocus=item->hasActiveFocus() && item->property("text").toString()==beforeTab;
+ std::cout<<"Tab focus="<<tabFocus<<" Backtab focus="<<backtabFocus<<std::endl;
  std::cout<<"TextField passive reads="<<original<<" TextArea passive reads="<<replacement<<" production passive reads="<<actual<<" IME="<<ime<<" accessible editable="<<editable<<" CtrlV="<<ctrl<<" ShiftInsert="<<shift<<" normal paste="<<normal<<" oversized rejected="<<oversized<<" Enter="<<enter<<" limit="<<limit<<" undo="<<undo<<" IME limit="<<imeLimit<<" middle="<<middle<<" reflected paste="<<reflected<<" selection="<<selection<<" horizontal scroll="<<scroll<<" home="<<home<<std::endl;
  delete item; app.clipboard()->clear();
- return original>=0 && replacement==0 && actual==0 && ime && editable && ctrl && shift && normal && oversized && enter && limit && undo && imeLimit && middle && reflected && selection && scroll && home ? 0:1;
+ return original>=0 && replacement==0 && actual==0 && ime && editable && ctrl && shift && normal && oversized && enter && limit && undo && imeLimit && middle && reflected && selection && scroll && home && tabFocus && backtabFocus ? 0:1;
 }

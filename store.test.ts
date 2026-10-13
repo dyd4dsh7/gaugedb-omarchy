@@ -110,3 +110,19 @@ describe("Omarchy local saved data", () => {
     expect(Countries.supported("ZZ")).toBe(false);
   });
 });
+
+test("starting view migrates old state and rejects unsupported preferences", () => {
+  const old = Store.empty();
+  delete old.startView;
+  expect(Store.read(JSON.stringify(old), Model, Countries).startView).toBe("");
+  const saved = { ...Store.empty(), startView: "saved" };
+  expect(Store.read(Store.encode(saved), Model, Countries).startView).toBe("saved");
+  expect(() => Store.read(JSON.stringify({ ...saved, startView: "invalid" }), Model, Countries)).toThrow();
+  expect(Store.mergeLoaded(saved, { ...Store.empty(), startView: "deals" }).startView).toBe("deals");
+});
+
+test("invalid watch and wishlist state is rejected rather than clearing saved games",()=>{
+ for (const extra of [{watches:null},{wishlist:0},{backgroundWatches:"on"},{watches:Array(11).fill({})}]) {
+  expect(()=>Store.read(JSON.stringify({...Store.empty(),...extra}),Model,Countries)).toThrow();
+ }
+});

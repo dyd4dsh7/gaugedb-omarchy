@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "com.gaugedb.search",
   "name": "GaugeDB",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "author": "GaugeDB",
   "license": "MIT",
-  "description": "Search Steam games, compare regional prices, save favourites and browse deals from your bar. Includes offline summaries and ProtonDB links.",
+  "description": "Search Steam games, compare regional prices, save favourites and browse deals from your bar. Includes public wishlist import, local price watches and saved price history.",
   "kinds": ["bar-widget"],
   "entryPoints": { "barWidget": "BarWidget.qml" },
   "barWidget": {

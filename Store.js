@@ -1,7 +1,7 @@
 // biome-ignore-all lint/correctness/noUnusedVariables: QML imports this local persistence model.
 // Public catalogue data only. Never store credentials, cookies or private account responses.
 function empty() {
-  return { version: 1, country: "", favourites: [], recent: [], cache: [] };
+  return { version: 1, country: "", startView: "", watches: [], wishlist: [], backgroundWatches: false, favourites: [], recent: [], cache: [] };
 }
 function identity(game) {
   if (
@@ -26,6 +26,20 @@ function identities(items, limit) {
     })
   )
     throw new Error("Duplicate saved game.");
+  return result;
+}
+function watches(items, registry) {
+  if (!Array.isArray(items) || items.length > 10) throw new Error("Invalid price watches.");
+  var result = items.map(function (value) {
+    var game = identity(value);
+    if (!/^[A-Z]{2}$/.test(value.country || "") || (registry && !registry.supported(value.country))
+      || !/^[A-Z]{3}$/.test(value.currency || "")
+      || [value.baseline, value.last].some(function(n) { return typeof n !== "number" || !isFinite(n) || n < 0 || Math.floor(n) !== n || n > 2147483647; })
+      || typeof value.observedAt !== "number" || !isFinite(value.observedAt) || value.observedAt <= 0 || value.observedAt > Date.now() + 60000)
+      throw new Error("Invalid price watch.");
+    return { id: game.id, name: game.name, country: value.country, currency: value.currency, baseline: value.baseline, last: value.last, observedAt: value.observedAt };
+  });
+  if (result.some(function(value,i) { return result.slice(0,i).some(function(old) { return value.id === old.id && value.country === old.country; }); })) throw new Error("Duplicate price watch.");
   return result;
 }
 function key(body) {
@@ -56,6 +70,8 @@ function read(text, model, registry) {
     !data ||
     data.version !== 1 ||
     (data.country !== "" && !registry.supported(data.country)) ||
+    (data.startView !== undefined && ["", "search", "saved", "deals"].indexOf(data.startView) === -1) ||
+    (data.backgroundWatches !== undefined && typeof data.backgroundWatches !== "boolean") ||
     !Array.isArray(data.cache) ||
     data.cache.length > 20
   )
@@ -63,6 +79,10 @@ function read(text, model, registry) {
   var result = {
     version: 1,
     country: data.country,
+    startView: data.startView || "",
+    watches: watches(data.watches === undefined ? [] : data.watches, registry),
+    wishlist: identities(data.wishlist === undefined ? [] : data.wishlist, 40),
+    backgroundWatches: data.backgroundWatches === true,
     favourites: identities(data.favourites, 40),
     recent: identities(data.recent, 12),
     cache: [],
@@ -97,6 +117,10 @@ function encode(data) {
   var next = {
     version: 1,
     country: data.country,
+    startView: data.startView || "",
+    watches: watches(data.watches || []),
+    wishlist: identities(data.wishlist === undefined ? [] : data.wishlist, 40),
+    backgroundWatches: data.backgroundWatches === true,
     favourites: identities(data.favourites, 40),
     recent: identities(data.recent, 12),
     cache: data.cache.slice(0, 20),
@@ -169,7 +193,7 @@ function get(data, body, now) {
   return { result: result, savedAt: entry.savedAt };
 }
 function savedGames(data, section) {
-  var items = section === "recent" ? data.recent : data.favourites;
+  var items = section === "wishlist" ? (data.wishlist || []) : section === "recent" ? data.recent : data.favourites;
   return items.map(function (item) {
     return { id: item.id, name: item.name, price: null };
   });
@@ -177,6 +201,7 @@ function savedGames(data, section) {
 function mergeLoaded(loaded, current) {
   var next = Object.assign({}, loaded);
   next.country = current.country || loaded.country;
+  next.startView = current.startView || loaded.startView || "";
   next.recent = current.recent
     .concat(
       loaded.recent.filter(function (game) {

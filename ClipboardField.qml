@@ -84,7 +84,12 @@ Controls.TextArea {
   }
   Keys.priority: Keys.BeforeItem
   Keys.onPressed: function(event) {
-    if (event.matches(StandardKey.Paste)) { field.paste(); event.accepted = true }
+    if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+      let backward = event.key === Qt.Key_Backtab || (event.modifiers & Qt.ShiftModifier)
+      field.nextItemInFocusChain(!backward).forceActiveFocus(backward ? Qt.BacktabFocusReason : Qt.TabFocusReason)
+      event.accepted = true
+    }
+    else if (event.matches(StandardKey.Paste)) { field.paste(); event.accepted = true }
     else if (event.text.length && !(event.modifiers & (Qt.ControlModifier | Qt.MetaModifier))
       && text.length - (selectionEnd - selectionStart) + event.text.length > maximumLength) { event.accepted = true }
     else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { field.accepted(); event.accepted = true }
