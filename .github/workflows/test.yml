@@ -24,4 +24,4 @@ jobs:
           docker run --rm
           -v "$GITHUB_WORKSPACE:/plugin:ro"
           archlinux:base@sha256:4e77cf2ea5f410e6f8be5abf93ccf17ce2436e87a138c167208356711a405dbd
-          bash -lc 'pacman -Sy --noconfirm qt6-declarative gcc pkgconf ttf-dejavu quickshell && bash /plugin/scripts/test-clipboard-input.sh && bash /plugin/scripts/test-notification-privacy.sh'
+          bash -lc 'pacman -Sy --noconfirm qt6-declarative gcc pkgconf ttf-dejavu quickshell python && bash /plugin/scripts/test-clipboard-input.sh && bash /plugin/scripts/test-notification-privacy.sh'
