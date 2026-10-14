@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1
+
+- Keep watched game names, prices and countries out of notification arguments by using a generic notification.
+- Send public request inputs over bounded stdin so watched app IDs and entered SteamID64 values are not exposed through helper command lines.
+
 ## 0.3.0
 
 - Import a public Steam wishlist into a separate Saved tab; retain up to 40 game IDs without saving the SteamID64.

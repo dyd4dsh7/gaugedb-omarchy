@@ -21,6 +21,17 @@ export QML_IMPORT_PATH="$test_root/imports${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
 export XDG_RUNTIME_DIR="${GAUGEDB_WAYLAND_RUNTIME:-$test_root/runtime}"
 export XDG_STATE_HOME="$test_root/state" XDG_CONFIG_HOME="$test_root/config"
 export GAUGEDB_NATIVE_TEST=1
+mkdir "$test_root/bin"
+cat > "$test_root/bin/notify-send" <<'PYNOTIFY'
+#!/usr/bin/env python3
+import json, os, sys
+with open(os.environ["GAUGEDB_NOTIFICATION_CAPTURE"], "w") as output:
+  json.dump(sys.argv[1:], output)
+PYNOTIFY
+chmod 700 "$test_root/bin/notify-send"
+export PATH="$test_root/bin:$PATH"
+export GAUGEDB_NOTIFICATION_CAPTURE="$test_root/notification.json"
+export GAUGEDB_PUBLIC_PROVIDER="$plugin_root/tests/public-request-fixture.py"
 for mode in write read corrupt unsafe network clipboard features; do
   export GAUGEDB_TEST_MODE="$mode"
   # Simulate an earlier permissive installation; the plugin must repair metadata.
@@ -40,6 +51,15 @@ for mode in write read corrupt unsafe network clipboard features; do
   else
     [[ $(stat -c %a "$test_root/state/gaugedb-omarchy") == 700 ]]
     [[ $(stat -c %a "$test_root/state/gaugedb-omarchy/state.json") == 600 ]]
+  fi
+  if [[ $mode == features ]]; then
+    python3 - "$test_root/notification.json" <<'PYPRIVACY'
+import json, sys
+args=json.load(open(sys.argv[1]))
+assert args == ["--app-name=GaugeDB", "GaugeDB price watch", "A watched price fell. Open GaugeDB to review saved prices; check Steam before buying."]
+assert all(secret not in " ".join(args) for secret in ["Portal", "620", "499", "NZD", "76561197960265729"])
+print("NOTIFICATION_PRIVACY_PASS: captured argv contains no watch details")
+PYPRIVACY
   fi
   grep 'GAUGEDB_NATIVE_PASS:' "$test_root/$mode.log"
 done

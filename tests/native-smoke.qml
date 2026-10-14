@@ -48,7 +48,9 @@ Item {
           test.check(wishlist && input, "native wishlist controls")
           panel.favourite({id:"steam:620",name:"Portal 2"})
           input.text = "76561197960265729"
-          wishlist.process.command = ["printf", "%s", JSON.stringify({ids:["steam:730","steam:440"],total:2})]
+          wishlist.requestArguments = ["wishlist", input.text]
+          test.check(wishlist.process.command.length === 6 && wishlist.process.command.join(" ").indexOf(input.text) < 0, "private request inputs absent from production argv")
+          wishlist.process.command = ["python3", Quickshell.env("GAUGEDB_PUBLIC_PROVIDER")]
           panel.importWishlist()
           test.phase = 60; return
         }
@@ -110,11 +112,13 @@ Item {
           if (history.busy || panel.priceHistoryData.points.length !== 1) return
           panel.localData = Object.assign({}, panel.localData, {watches:[{id:"steam:620",name:"Portal 2",country:"NZ",currency:"NZD",baseline:999,last:999,observedAt:Date.now()-60000}]})
           watches.request.process.command = ["printf", "%s", JSON.stringify({jsonrpc:"2.0",id:1,result:{structuredContent:{coverage:"Synthetic test quote",games:[{id:"steam:620",name:"Portal 2",price:{status:"priced",requestedCountry:"NZ",actualStoreCountry:"NZ",currency:"NZD",finalMinor:499,observation:{at:new Date().toISOString(),freshness:"fresh"}}}]}}})]
+          panel.localData = Object.assign({}, panel.localData, {backgroundWatches:true})
           watches.check()
           test.phase = 62; return
         }
         if (test.phase === 62) {
-          if (watches.request.busy || panel.localData.watches[0].last !== 499) return
+          if (watches.request.busy || panel.localData.watches[0].last !== 499 || !watches.notifyExitSeen || watches.notifications.length) return
+          test.check(watches.status === "", "automatic notification succeeds and drains queue")
           panel.localData = Object.assign({}, panel.localData, {backgroundWatches:true})
           watches.notify.command = ["/missing-gaugedb-notification-command"]
           watches.notifications = ["Native test notification"]

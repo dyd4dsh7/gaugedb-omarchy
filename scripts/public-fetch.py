@@ -28,7 +28,7 @@ def request(args):
             body = json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_game","arguments":{"id":"steam:"+app,"country":country}}}).encode()
     else:
         raise ValueError("Unsupported action")
-    req = urllib.request.Request(url, data=body, headers={"Accept":"application/json, text/event-stream" if action == "watch" else "application/json", "Content-Type":"application/json", "User-Agent":"GaugeDB-Omarchy/0.3.0"})
+    req = urllib.request.Request(url, data=body, headers={"Accept":"application/json, text/event-stream" if action == "watch" else "application/json", "Content-Type":"application/json", "User-Agent":"GaugeDB-Omarchy/0.3.1"})
     with urllib.request.build_opener(FixedRedirect()).open(req, timeout=12) as response:
         if action == "wishlist" and response.headers.get("x-eresult", "1") != "1":
             raise ValueError("Wishlist unavailable")
@@ -49,7 +49,18 @@ def request(args):
     result = json.dumps(data, separators=(",", ":"), ensure_ascii=True)
     if len(result.encode("utf-8")) > LIMIT: raise ValueError("Output too large")
     return result
+def read_arguments(stream):
+    raw = stream.readline(4097)
+    if len(raw.encode("utf-8")) > 4096 or not raw.endswith("\n"):
+        raise ValueError("Invalid request input")
+    args = json.loads(raw)
+    if not isinstance(args, list) or not 2 <= len(args) <= 3 or any(not isinstance(value, str) for value in args):
+        raise ValueError("Invalid request arguments")
+    return args
+
 if __name__ == "__main__":
-    try: print(request(sys.argv[1:]))
+    try:
+        if len(sys.argv) != 1: raise ValueError("Arguments must use stdin")
+        print(request(read_arguments(sys.stdin)))
     except Exception:
         sys.exit(1)

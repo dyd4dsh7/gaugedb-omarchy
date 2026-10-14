@@ -5,8 +5,8 @@
 Search Steam games, browse regional deals, save favourites and compare two games
 from an Omarchy bar panel. Built for **Omarchy Quattro / Omarchy 4** and Quickshell.
 
-**Version 0.3.0 adds public wishlist import, local price watches and native history.**
-Marketplace verification for 0.3.0 is pending; 0.2.4 remains the verified snapshot until approval.
+**Version 0.3.1 adds public wishlist import, local price watches and native history.**
+Marketplace verification for 0.3.1 is pending; 0.2.4 remains the verified snapshot until approval.
 ARM UTM desktop, native input, strict QML lint and regression results are
 documented in [VALIDATION.md](VALIDATION.md), including remaining limitations.
 
@@ -187,7 +187,7 @@ private fake provider, not real clipboard content.
 
 ## Wishlist, watches and history
 
-Version 0.3.0 adds **Options**, a saved starting view, F1 / ? help,
+Version 0.3.1 adds **Options**, a saved starting view, F1 / ? help,
 public Steam wishlist import, local price watches and a native price-history view.
 
 Public wishlist import reads Valve's public wishlist endpoint for the SteamID64
@@ -197,7 +197,9 @@ is not persisted; private/unavailable responses preserve existing saved games.
 Local watches are limited to ten exact game/country/currency combinations. Start a
 watch from a fresh regional detail price. Background checks are off by default;
 when enabled, they run every 30 minutes with sequential bounded requests. Newer
-lower observations trigger a desktop notification. Stale, foreign-country and
+lower observations trigger a generic desktop notification. Watched names, prices,
+country and game IDs are not included in notification arguments; request inputs
+travel over stdin rather than process arguments. Open the panel for game details. Stale, foreign-country and
 changed-currency prices do not trigger it. Disable background watches to stop
 polling. Removing the plugin ends its running services.
 

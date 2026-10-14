@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "com.gaugedb.search",
   "name": "GaugeDB",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "author": "GaugeDB",
   "license": "MIT",
   "description": "Search Steam games, compare regional prices, save favourites and browse deals from your bar. Includes public wishlist import, local price watches and saved price history.",

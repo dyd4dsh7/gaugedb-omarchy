@@ -280,3 +280,33 @@ Python tests, official Omarchy manifest validation, zero-warning strict QML lint
 all seven native smoke modes, Linux clipboard helper boundary tests and the native
 Qt input regression including Tab / Backtab. Native checks ran on the documented
 ARM Omarchy UTM host in isolated temporary state, without replacing the active plugin.
+
+## Version 0.3.1 notification privacy fix — 2026-10-14
+
+The 0.3.0 notification body exposed the saved watched game name and regional
+price in notify-send arguments. Version 0.3.1 uses a constant generic notification
+with no game name, ID, country or price. Its queue stores only trigger tokens.
+The related public request helper now receives a bounded newline-delimited JSON
+request through stdin; watched app IDs and entered SteamID64 values are absent
+from timeout/Python command arguments. No new files or environment variables
+carry private request inputs in production. Fixed endpoint validation, deadlines,
+price eligibility, deduplication and cancellation remain in place.
+
+The focused native regression captures actual notify-send argv during a controlled
+price drop and verifies that watched identifiers and prices are absent. It also
+executes native stdin wishlist/watch transport, saved price updates, automatic
+notification success, queue draining and opt-out cancellation. The executable is
+a disposable fake notification provider, so this test creates no real alerts.
+
+Passed on ARM Qt/Quickshell in the existing test VM: official manifest validation,
+strict zero-warning QML lint, six Python tests, native notification privacy test,
+Linux clipboard boundary tests and native Qt input/Tab/Backtab regression. The
+JavaScript suite passed 43 tests / 198 assertions. Native privacy uses Qt offscreen;
+the full panel smoke rerun could not start while the rebooted VM was at login,
+and offscreen lacks its PanelWindow backend. Earlier full desktop/390px evidence
+remains the 0.3.0 feature validation, not a new 0.3.1 desktop pass.
+
+Generic notifications can still reveal that a price-watch event occurred; they do
+not reveal which game or price. This change does not protect against processes
+running as the same user or an administrator. Marketplace approval/publication
+requires verification of the new exact commit.

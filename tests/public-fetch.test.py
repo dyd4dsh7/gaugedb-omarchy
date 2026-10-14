@@ -1,4 +1,4 @@
-import importlib.util, json, unittest, sys
+import importlib.util, json, unittest, sys, io, subprocess
 sys.dont_write_bytecode = True
 from pathlib import Path
 from unittest.mock import patch
@@ -15,6 +15,16 @@ class Opener:
     def __init__(self,value): self.value=value
     def open(self,req,timeout): return Response(self.value)
 class Reads(unittest.TestCase):
+    def test_private_request_inputs_use_bounded_stdin(self):
+        self.assertEqual(fetch.read_arguments(io.StringIO('["watch","620","NZ"]\n')), ["watch","620","NZ"])
+        for raw in ['["watch","620","NZ"]', '["watch",620,"NZ"]\n', '{}\n', '["watch","'+"x"*4100+'","NZ"]\n']:
+            with self.assertRaises(ValueError): fetch.read_arguments(io.StringIO(raw))
+
+    def test_cli_arguments_are_rejected_without_disclosing_input(self):
+        result = subprocess.run([sys.executable, str(Path(__file__).parent.parent/"scripts/public-fetch.py"), "watch", "620", "NZ"], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout + result.stderr, "")
+
     def test_watch_negotiates_the_public_mcp_media_types(self):
         class StrictMcpOpener:
             def open(self,req,timeout):

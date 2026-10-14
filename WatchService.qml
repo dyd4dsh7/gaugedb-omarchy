@@ -27,7 +27,7 @@ QtObject {
             let update = Watch.update(current, response.games[0], Date.now())
             root.updated(root.watches.map(function(item) { return item === current ? update.watch : item }))
             if (update.notify && root.enabled) {
-              root.notifications = root.notifications.concat([Watch.notificationText(current.name + " · " + Model.price(response.games[0]) + ". Check Steam before buying.")])
+              root.notifications = root.notifications.concat([true])
               root.sendNotification()
             }
           }
@@ -37,7 +37,7 @@ QtObject {
     }
   }
   property Process notify: Process {
-    command: ["notify-send", "--app-name=GaugeDB", "GaugeDB price watch", root.notifications.length ? root.notifications[0] : ""]
+    command: ["notify-send", "--app-name=GaugeDB", "GaugeDB price watch", "A watched price fell. Open GaugeDB to review saved prices; check Steam before buying."]
     onExited: function(code, status) {
       root.notifyExitSeen = true
       if (code !== 0 || status !== 0) root.status = "Desktop notification could not be sent."

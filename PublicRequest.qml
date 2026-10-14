@@ -8,7 +8,9 @@ QtObject {
   property var requestArguments: []
   signal finished(string value, bool success)
   property Process process: Process {
-    command: ["timeout", "--signal=TERM", "--kill-after=1s", "20s", "python3", decodeURIComponent(String(Qt.resolvedUrl("scripts/public-fetch.py")).slice(7))].concat(root.requestArguments)
+    command: ["timeout", "--signal=TERM", "--kill-after=1s", "20s", "python3", decodeURIComponent(String(Qt.resolvedUrl("scripts/public-fetch.py")).slice(7))]
+    stdinEnabled: true
+    onStarted: write(JSON.stringify(root.requestArguments) + "\n")
     stdout: StdioCollector { id: output }
     onExited: function(code, status) { root.exitSeen = true; root.complete(output.text, code === 0 && status === 0) }
     onRunningChanged: if (!running && root.busy && !root.exitSeen) root.complete("", false)

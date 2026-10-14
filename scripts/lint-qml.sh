@@ -11,7 +11,7 @@ trap 'rm -rf "$imports"' EXIT
 ln -s "$OMARCHY_PATH/shell" "$imports/qs"
 if ! "$lint_bin" --max-warnings 0 --json "$imports/report.json" -I "$imports" \
   "$plugin_root/BarWidget.qml" "$plugin_root/Panel.qml" \
-  "$plugin_root/ClipboardField.qml" "$plugin_root/ClipboardPaste.qml" "$plugin_root/BrandMark.qml" "$plugin_root/PublicRequest.qml" "$plugin_root/WatchService.qml" "$plugin_root/PriceHistory.qml" "$plugin_root/tests/native-smoke.qml"; then
+  "$plugin_root/ClipboardField.qml" "$plugin_root/ClipboardPaste.qml" "$plugin_root/BrandMark.qml" "$plugin_root/PublicRequest.qml" "$plugin_root/WatchService.qml" "$plugin_root/PriceHistory.qml" "$plugin_root/tests/native-smoke.qml" "$plugin_root/tests/notification-privacy.qml"; then
   jq -r '.files[] | .filename as $file | .warnings[] | "\($file):\(.line):\(.column): \(.message)"' "$imports/report.json"
   exit 1
 fi
