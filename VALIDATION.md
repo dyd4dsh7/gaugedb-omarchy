@@ -8,13 +8,24 @@ smoke rerun after guest login passed, in addition to the focused privacy/input
 checks below. Older sections retain their original dates and reflect what was
 known at that stage, rather than the current publication state.
 
-Version 0.4.0 is under validation. Its source/model suite passes 47 tests / 218
+Version 0.4.0 is under validation. Its source/model suite passes 47 tests / 219
 assertions and six Python helper tests; official manifest validation passes.
 The original temporary VM is no longer present. Its saved checkpoint is in
 iCloud; restoration ran out of host disk space and was stopped at the owner's
 request. No 0.4.0 VM visual pass is claimed. Linux release CI now runs the native
 checks in an isolated Wayland session; its result will be recorded separately.
 No previous desktop or native run verifies the new candidate.
+
+Linux x86_64 CI at candidate `11b7ef5c532f44ef767e5cc773397e5543a6e00b`
+passed official manifest validation, zero-warning strict QML lint, six Python
+checks, clipboard helper limits, native Qt input/Tab/Backtab, captured generic
+notification argv, and all seven native smoke modes including actual Qt HTTP
+catalogue reads, wishlist name resolution and retained watch previous/check dates.
+Run: https://github.com/dyd4dsh7/gaugedb-omarchy/actions/runs/39015187722
+The final release commit is gated by the same CI workflow again. This is native
+Linux/headless Wayland evidence, not a new ARM UTM desktop/390px visual pass.
+The disposable pinned host checkout uses QtQuick 6.11 imports to avoid its known
+Color type collision with Qt 6.12; this does not modify installed user shells.
 
 ---
 

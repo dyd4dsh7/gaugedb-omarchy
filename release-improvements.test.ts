@@ -15,6 +15,7 @@ test("wishlist names persist across imports, reject invalid identities and canno
  data=Store.importWishlist(data,["steam:730"]);
  data=Store.wishlistName(data,"steam:620","Late reply");
  expect(data.wishlist).toEqual([{id:"steam:730",name:"Counter-Strike 2"}]);
+ expect(Store.wishlistName(data,"steam:620","")).toBe(data);
  expect(Store.read(Store.encode(data),Model,Countries).wishlist).toEqual(data.wishlist);
  expect(()=>Store.wishlistName(data,"steam:730"," ")).toThrow();
  expect(()=>Store.importWishlist(data,["steam:730","steam:730"])).toThrow();

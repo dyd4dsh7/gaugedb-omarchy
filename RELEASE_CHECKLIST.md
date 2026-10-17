@@ -5,9 +5,9 @@
 - [x] Public plugin-only source; MIT licensing and fixed-origin credential-free reads retained.
 - [x] JavaScript regressions and six Python helper boundary tests pass locally.
 - [x] Official pinned Omarchy manifest validator passes locally.
-- [ ] Strict native QML lint and full Linux release checks pass for this candidate.
+- [x] Strict zero-warning QML lint and full Linux release checks pass at candidate `11b7ef5`; the final release commit repeats these CI gates.
 - [ ] VM desktop/390px light/dark visual inspection: blocked by unavailable VM checkpoint and host disk space; restoration stopped at the owner's request. Linux native CI is separate evidence.
-- [ ] Final scoped commit pushed, release CI passes at that commit, and marketplace update submitted with the exact SHA.
+- [ ] Confirm final commit CI and marketplace submission from the GitHub release/update issue; these external outcomes are recorded there with their exact SHA.
 
 ## Previously verified evidence
 

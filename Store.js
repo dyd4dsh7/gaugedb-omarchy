@@ -226,6 +226,7 @@ function mergeLoaded(loaded, current) {
 
 // Name resolution changes only an existing wishlist member, never its identity.
 function wishlistName(data, id, name) {
+  if (!(data.wishlist || []).some(function(item) { return item.id === id; })) return data;
   var item = identity({id:id, name:name});
   if (!name.trim()) throw new Error("Invalid game name.");
   return Object.assign({}, data, {wishlist:(data.wishlist || []).map(function(old) { return old.id === item.id ? item : old; })});
