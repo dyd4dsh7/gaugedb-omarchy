@@ -35,7 +35,7 @@ QtObject {
         root.service.check()
         root.phase = 2
       } else if (root.phase === 2 && !root.service.request.busy && root.service.watches[0].last === 499 && root.service.notifyExitSeen && !root.service.notifications.length) {
-        root.check(root.service.status === "", "notification delivered")
+        root.check(root.service.status === "Checked 1 watches.", "notification delivered")
         root.service.enabled = false
         root.check(!root.service.poll.running && !root.service.notify.running, "opt-out cancels")
         console.log("PRIVACY_PASS: native stdin transport, automatic generic notification and cancellation")

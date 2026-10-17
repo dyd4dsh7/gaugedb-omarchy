@@ -28,7 +28,7 @@ def request(args):
             body = json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_game","arguments":{"id":"steam:"+app,"country":country}}}).encode()
     else:
         raise ValueError("Unsupported action")
-    req = urllib.request.Request(url, data=body, headers={"Accept":"application/json, text/event-stream" if action == "watch" else "application/json", "Content-Type":"application/json", "User-Agent":"GaugeDB-Omarchy/0.3.1"})
+    req = urllib.request.Request(url, data=body, headers={"Accept":"application/json, text/event-stream" if action == "watch" else "application/json", "Content-Type":"application/json", "User-Agent":"GaugeDB-Omarchy/0.4.0"})
     with urllib.request.build_opener(FixedRedirect()).open(req, timeout=12) as response:
         if action == "wishlist" and response.headers.get("x-eresult", "1") != "1":
             raise ValueError("Wishlist unavailable")

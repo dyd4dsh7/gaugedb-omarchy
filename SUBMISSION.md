@@ -1,3 +1,15 @@
+# Marketplace submissions
+
+The original submission below is historical. Version 0.3.1 was approved and
+published at `00eadbc20bc474ae473ff19730047f585cbb1bf1` via
+https://github.com/omacom/omarchy-plugin-marketplace/issues/11307.
+Version 0.4.0 will use a new exact-commit update request after its release checks.
+The original maintainer notes describe the older implementation, before opt-in
+background watches and bundled branding were added; see README.md for current
+behaviour and dependencies.
+
+---
+
 # Marketplace submission
 
 Issue: https://github.com/omacom/omarchy-plugin-marketplace/issues/11087

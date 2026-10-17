@@ -10,6 +10,8 @@ QtObject {
   property var queue: []
   property var active: null
   property string status: ""
+  property int completed: 0
+  readonly property bool busy: request.busy || queue.length > 0 || next.running
   property var notifications: []
   property bool notifyExitSeen: false
   signal updated(var values)
@@ -33,7 +35,9 @@ QtObject {
           }
         } catch(error) { root.status = "A watch response was unavailable; saved prices retained." }
       } else if (old) root.status = "Price checks unavailable; saved prices retained."
+      root.completed++
       if (root.queue.length) root.next.restart()
+      else if (!root.status) root.status = "Checked " + root.completed + " watches."
     }
   }
   property Process notify: Process {
@@ -48,8 +52,9 @@ QtObject {
   }
   function sendNotification() { if (enabled && notifications.length && !notify.running) { notifyExitSeen = false; notify.running = true } }
   function check() {
-    if (request.busy || queue.length) return
+    if (busy) return
     status = ""
+    completed = 0
     queue = watches.slice(0, 10)
     fetchNext()
   }

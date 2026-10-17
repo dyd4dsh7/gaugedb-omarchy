@@ -18,7 +18,7 @@ const Model = runInNewContext(
 );
 const Store = runInNewContext(
   readFileSync(new URL("Store.js", import.meta.url), "utf8") +
-    "\n({empty, read, encode, toggle, remember, put, get, savedGames, mergeLoaded})",
+    "\n({empty, read, encode, toggle, remember, put, get, savedGames, mergeLoaded, wishlistName})",
 );
 const Countries = runInNewContext(
   readFileSync(new URL("Countries.js", import.meta.url), "utf8") +
@@ -89,6 +89,7 @@ function harness(failMethod = "") {
     localData: Store.empty(),
     clipboardPaste: { cancel() {} },
     wishlistRequest: { cancel() {} },
+    wishlistNames: { cancel() {} },
     historyRequest: { cancel() {} },
     storageReady: true,
     startApplied: false,
@@ -159,6 +160,8 @@ function harness(failMethod = "") {
         | "queryChanged"
         | "countryChanged"
         | "compare"
+        | "removeWatch"
+        | "openWatch"
         | "setCountry"
         | "saved"
         | "loadState"
@@ -419,4 +422,15 @@ test("invalid starting preferences are ignored and help dismisses before the pan
   expect(state.showSettings).toBe(true);
   state.dismiss();
   expect(state.showSettings).toBe(false);
+});
+
+test("watch removal affects only the exact country and opening uses that region", () => {
+  const {state,requests}=harness();
+  const item={id:"steam:620",name:"Portal 2",currency:"NZD",baseline:999,last:499,observedAt:Date.now()};
+  state.localData.watches=[{...item,country:"NZ"},{...item,country:"US",currency:"USD"}];
+  state.removeWatch("steam:620","NZ");
+  expect(state.localData.watches).toHaveLength(1);
+  expect(state.localData.watches[0].country).toBe("US");
+  state.openWatch("steam:620","US");
+  expect(JSON.parse(requests[0].body).params.arguments).toEqual({id:"steam:620",country:"US"});
 });

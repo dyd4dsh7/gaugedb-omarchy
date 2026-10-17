@@ -37,7 +37,8 @@ function watches(items, registry) {
       || [value.baseline, value.last].some(function(n) { return typeof n !== "number" || !isFinite(n) || n < 0 || Math.floor(n) !== n || n > 2147483647; })
       || typeof value.observedAt !== "number" || !isFinite(value.observedAt) || value.observedAt <= 0 || value.observedAt > Date.now() + 60000)
       throw new Error("Invalid price watch.");
-    return { id: game.id, name: game.name, country: value.country, currency: value.currency, baseline: value.baseline, last: value.last, observedAt: value.observedAt };
+    if ((value.previous !== undefined && (typeof value.previous !== "number" || !isFinite(value.previous) || value.previous < 0 || value.previous > 2147483647 || Math.floor(value.previous) !== value.previous)) || (value.checkedAt !== undefined && (typeof value.checkedAt !== "number" || !isFinite(value.checkedAt) || value.checkedAt < 0 || value.checkedAt > Date.now() + 60000))) throw new Error("Invalid watch check.");
+    return { id: game.id, name: game.name, country: value.country, currency: value.currency, baseline: value.baseline, last: value.last, observedAt: value.observedAt, previous: value.previous === undefined ? value.last : value.previous, checkedAt: value.checkedAt || 0 };
   });
   if (result.some(function(value,i) { return result.slice(0,i).some(function(old) { return value.id === old.id && value.country === old.country; }); })) throw new Error("Duplicate price watch.");
   return result;
@@ -221,4 +222,18 @@ function mergeLoaded(loaded, current) {
     )
     .slice(0, 20);
   return next;
+}
+
+// Name resolution changes only an existing wishlist member, never its identity.
+function wishlistName(data, id, name) {
+  var item = identity({id:id, name:name});
+  if (!name.trim()) throw new Error("Invalid game name.");
+  return Object.assign({}, data, {wishlist:(data.wishlist || []).map(function(old) { return old.id === item.id ? item : old; })});
+}
+function importWishlist(data, ids) {
+  var known = (data.wishlist || []).concat(data.favourites, data.recent);
+  var items = ids.map(function(id) {
+    return known.find(function(item) { return item.id === id; }) || {id:id,name:"Steam app " + id.slice(6)};
+  });
+  return Object.assign({}, data, {wishlist:identities(items, 40)});
 }

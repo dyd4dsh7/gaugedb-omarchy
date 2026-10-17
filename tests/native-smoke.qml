@@ -51,6 +51,8 @@ Item {
           wishlist.requestArguments = ["wishlist", input.text]
           test.check(wishlist.process.command.length === 6 && wishlist.process.command.join(" ").indexOf(input.text) < 0, "private request inputs absent from production argv")
           wishlist.process.command = ["python3", Quickshell.env("GAUGEDB_PUBLIC_PROVIDER")]
+          let names = test.find(panel, "gaugedb-wishlist-names", [])
+          names.request.process.command = ["python3", Quickshell.env("GAUGEDB_PUBLIC_PROVIDER")]
           panel.importWishlist()
           test.phase = 60; return
         }
@@ -98,7 +100,9 @@ Item {
         let watches = test.find(panel, "gaugedb-watch-service", [])
         test.check(wishlist && history && watches, "native feature services")
         if (test.phase === 60) {
-          if (wishlist.busy || panel.localData.wishlist.length !== 2) return
+          let names = test.find(panel, "gaugedb-wishlist-names", [])
+          if (wishlist.busy || names.busy || panel.localData.wishlist.length !== 2) return
+          test.check(panel.localData.wishlist[0].name === "Counter-Strike 2", "wishlist resolves names in native service")
           test.check(panel.isFavourite("steam:620"), "wishlist preserves favourites")
           panel.countryCode = "NZ"
           panel.selectedId = "steam:620"
@@ -118,7 +122,8 @@ Item {
         }
         if (test.phase === 62) {
           if (watches.request.busy || panel.localData.watches[0].last !== 499 || !watches.notifyExitSeen || watches.notifications.length) return
-          test.check(watches.status === "", "automatic notification succeeds and drains queue")
+          test.check(watches.status === "Checked 1 watches.", "automatic notification succeeds and drains queue")
+          test.check(panel.localData.watches[0].previous === 999 && panel.localData.watches[0].checkedAt > 0, "watch detail change and check time retained")
           panel.localData = Object.assign({}, panel.localData, {backgroundWatches:true})
           watches.notify.command = ["/missing-gaugedb-notification-command"]
           watches.notifications = ["Native test notification"]

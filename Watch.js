@@ -12,9 +12,10 @@ function quote(game, country, now) {
 function update(watch, game, now) {
   if (!game || game.id !== watch.id) return { watch: watch, notify: false };
   var p = quote(game, watch.country, now);
-  if (!p || p.currency !== watch.currency || p.at <= watch.observedAt) return { watch: watch, notify: false };
+  if (!p || p.currency !== watch.currency) return { watch: watch, notify: false };
+  if (p.at <= watch.observedAt) return {watch:Object.assign({}, watch, {checkedAt:now}), notify:false};
   return { watch: { id: watch.id, name: watch.name, country: watch.country, currency: watch.currency,
-    baseline: watch.baseline, last: p.amount, observedAt: p.at }, notify: p.amount < watch.last && p.amount < watch.baseline };
+    baseline: watch.baseline, last: p.amount, observedAt: p.at, checkedAt:now, previous:p.amount !== watch.last ? watch.last : (watch.previous === undefined ? watch.last : watch.previous) }, notify: p.amount < watch.last && p.amount < watch.baseline };
 }
 function notificationText(value) {
   return String(value).replace(/[\x00-\x1f\x7f]/g, " ").slice(0, 500).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

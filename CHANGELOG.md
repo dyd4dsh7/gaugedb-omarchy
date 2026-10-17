@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0
+
+- Manage exact-country watches in Saved, with previous/latest/starting prices, observation and check dates, manual-check status, opening and removal.
+- Resolve missing public wishlist names sequentially, retain them across restart/reimport, and cancel pending lookups when closing the panel.
+- Label history price/date ranges and lowest/latest values; expose exact observations in an expandable accessible list.
+- Correct the recorded 0.3.1 marketplace approval/publication and separate historical checks from current release gates.
+- Add official manifest validation, strict QML lint and seven native smoke modes to Linux CI alongside clipboard/input and notification privacy regressions.
+
 ## 0.3.1
 
 - Keep watched game names, prices and countries out of notification arguments by using a generic notification.

@@ -14,3 +14,11 @@ function amount(value, currency) {
   var zero = ["JPY", "KRW", "VND", "CLP", "IDR", "COP", "HUF"];
   return (value/100).toFixed(zero.indexOf(currency) >= 0 ? 0 : currency === "KWD" ? 3 : 2) + " " + currency;
 }
+
+function summary(dataset) {
+  var points = dataset.points;
+  if (!points.length) return "No saved observations";
+  var values = points.map(function(point) { return point.finalMinor; });
+  return "Lowest " + amount(Math.min.apply(null, values), dataset.currency) + " · Latest " + amount(points[points.length-1].finalMinor, dataset.currency);
+}
+function dateLabel(value) { return new Date(value).toISOString().slice(0,10); }

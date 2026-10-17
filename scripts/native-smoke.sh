@@ -9,7 +9,7 @@ trap 'rm -rf "$test_root"' EXIT
 mkdir -p "$test_root/config" "$test_root/runtime" "$test_root/state" "$test_root/imports"
 chmod 700 "$test_root/runtime"
 mkdir "$test_root/config/plugin"
-for file in BarWidget.qml Panel.qml ClipboardField.qml ClipboardPaste.qml PublicRequest.qml WatchService.qml PriceHistory.qml BrandMark.qml Model.js Store.js Countries.js Watch.js History.js; do
+for file in BarWidget.qml Panel.qml ClipboardField.qml ClipboardPaste.qml PublicRequest.qml WatchService.qml WishlistService.qml PriceHistory.qml BrandMark.qml Model.js Store.js Countries.js Watch.js History.js; do
   cp "$plugin_root/$file" "$test_root/config/plugin/$file"
 done
 mkdir "$test_root/config/plugin/scripts"

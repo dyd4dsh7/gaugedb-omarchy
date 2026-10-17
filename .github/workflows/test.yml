@@ -14,14 +14,14 @@ jobs:
       - run: bash tests/clipboard-helper.test.sh
       - run: python3 tests/public-fetch.test.py
 
-  native-input:
+  native-release:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Native Qt input and notification privacy regressions
+      - name: Manifest, strict QML lint and native release regressions
         run: >-
           docker run --rm
           -v "$GITHUB_WORKSPACE:/plugin:ro"
           archlinux:base@sha256:4e77cf2ea5f410e6f8be5abf93ccf17ce2436e87a138c167208356711a405dbd
-          bash -lc 'pacman -Sy --noconfirm qt6-declarative gcc pkgconf ttf-dejavu quickshell python && bash /plugin/scripts/test-clipboard-input.sh && bash /plugin/scripts/test-notification-privacy.sh'
+          bash -lc 'pacman -Syu --noconfirm qt6-declarative qt6-wayland qt6-svg gcc pkgconf ttf-dejavu quickshell python git jq curl weston && bash /plugin/scripts/ci-native.sh'

@@ -5,8 +5,10 @@
 Search Steam games, browse regional deals, save favourites and compare two games
 from an Omarchy bar panel. Built for **Omarchy Quattro / Omarchy 4** and Quickshell.
 
-**Version 0.3.1 adds public wishlist import, local price watches and native history.**
-Marketplace verification for 0.3.1 is pending; 0.2.4 remains the verified snapshot until approval.
+**Version 0.4.0 adds a Watches list, saved wishlist names and readable history observations.**
+Version 0.3.1 was approved and published at `00eadbc20bc474ae473ff19730047f585cbb1bf1`
+via [#11307](https://github.com/omacom/omarchy-plugin-marketplace/issues/11307).
+Version 0.4.0 requires a separate exact-commit marketplace review.
 ARM UTM desktop, native input, strict QML lint and regression results are
 documented in [VALIDATION.md](VALIDATION.md), including remaining limitations.
 
@@ -104,7 +106,8 @@ The plugin calls the public GaugeDB catalogue at
 `https://gaugedb.com/api/search?q=<appId>` for artwork and developer/type labels.
 Search titles, game IDs and requested country are sent to GaugeDB. Optional
 capsules load from validated HTTPS Steam CDN URLs for that exact app.
-There is no background polling or Steam refresh. No game artwork is bundled.
+Background price checks are off by default; enabling local watches opts into
+30-minute polling. No Steam refresh is performed. No game artwork is bundled.
 
 Browser actions open fixed GaugeDB, Steam and ProtonDB URLs for validated Steam
 IDs via `xdg-open`. The browser manages its own login and store preference.
@@ -140,6 +143,8 @@ To delete it too, first back it up, then remove only
 bun --no-env-file test
 omarchy plugin validate .
 OMARCHY_PATH=/path/to/omarchy bash scripts/lint-qml.sh
+# Linux with an active Wayland session:
+OMARCHY_PATH=/path/to/omarchy GAUGEDB_WAYLAND_RUNTIME="$XDG_RUNTIME_DIR" bash scripts/release-checks.sh
 ```
 
 The standalone suite uses synthetic public response data and the shipped
@@ -187,11 +192,15 @@ private fake provider, not real clipboard content.
 
 ## Wishlist, watches and history
 
-Version 0.3.1 adds **Options**, a saved starting view, F1 / ? help,
+Version 0.3 adds **Options**, a saved starting view, F1 / ? help,
 public Steam wishlist import, local price watches and a native price-history view.
 
 Public wishlist import reads Valve's public wishlist endpoint for the SteamID64
-entered explicitly. It keeps up to 40 IDs separate from favourites. The ID itself
+entered explicitly. It keeps up to 40 games separate from favourites. Missing
+names resolve through sequential public GaugeDB requests, two seconds apart;
+resolved names are saved on this device and reused on reimport. Closing the panel
+cancels pending name requests; **Load missing names** retries unresolved entries.
+The SteamID64 itself
 is not persisted; private/unavailable responses preserve existing saved games.
 
 Local watches are limited to ten exact game/country/currency combinations. Start a
@@ -200,12 +209,18 @@ when enabled, they run every 30 minutes with sequential bounded requests. Newer
 lower observations trigger a generic desktop notification. Watched names, prices,
 country and game IDs are not included in notification arguments; request inputs
 travel over stdin rather than process arguments. Open the panel for game details. Stale, foreign-country and
-changed-currency prices do not trigger it. Disable background watches to stop
-polling. Removing the plugin ends its running services.
+changed-currency prices do not trigger it. Use **Saved → Watches** to review each game's previous/latest price, starting
+price, observation date and last successful price check, open it in its matching
+country, or remove the watch. **Check watches now** also works with background
+checks off and reports completion/failure. Last checked updates only for a valid
+same-country/currency quote; old observations never overwrite newer prices.
+Disable background watches to stop polling. Removing the plugin ends its running services.
 
 The native chart reads the deployed public price-history endpoint.
 It shows saved points, excludes other currencies from the chosen series, and
-labels source country and legacy timestamps. It does not manufacture gaps or
+labels source country and legacy timestamps. Price/date range labels and the
+lowest/latest summary provide context; **Show observations** opens a screen-reader
+readable list of exact UTC dates and prices, newest first. It does not manufacture gaps or
 claim live Steam availability. If the endpoint is unavailable, the web history action remains the fallback.
 
 Helper dependencies: Python 3 and GNU coreutils; desktop notifications need

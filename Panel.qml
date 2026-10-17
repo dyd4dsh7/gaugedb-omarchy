@@ -87,6 +87,14 @@ Ui.Panel {
     localData = Object.assign({}, localData, {watches: watches})
     persist()
   }
+  function removeWatch(id, country) {
+    localData = Object.assign({}, localData, {watches:(localData.watches || []).filter(function(item) { return item.id !== id || item.country !== country })})
+    persist()
+  }
+  function openWatch(id, country) {
+    setCountry(country)
+    details(id)
+  }
   function importWishlist() {
     if (!storageReady || wishlistRequest.busy) return
     let id = steamId.text.trim()
@@ -115,6 +123,7 @@ Ui.Panel {
     if (busy) { message = "Request cancelled."; canRetry = true }
     clipboardPaste.cancel()
     wishlistRequest.cancel()
+    wishlistNames.cancel()
     historyRequest.cancel()
     showPriceHistory = false
     priceHistoryData = ({points:[],currency:"",actualStoreCountry:"",coverage:""})
@@ -171,7 +180,10 @@ Ui.Panel {
         root.coverage = result.coverage
         root.message = result.games.length ? (result.missingIds && result.missingIds.length ? "Some selected games have no saved data." : "") : "No saved results for this request."
         root.localData = Store.put(root.localData, body, result, Date.now())
-        if (name === "get_game" && result.games.length) root.localData = Store.remember(root.localData, result.games[0])
+        if (name === "get_game" && result.games.length) {
+          root.localData = Store.remember(root.localData, result.games[0])
+          root.localData = Store.wishlistName(root.localData, result.games[0].id, result.games[0].name)
+        }
         root.persist()
         root.enrich(result.games)
       } catch (error) { root.canRetry = true; root.recover("GaugeDB returned an unexpected response. Try again.") }
@@ -254,9 +266,9 @@ Ui.Panel {
     message = listMessage
     offline = listOffline
     if (mode === "saved") {
-      games = Store.savedGames(localData, savedSection)
+      games = savedSection === "watches" ? [] : Store.savedGames(localData, savedSection)
       offline = false
-      message = games.length ? "" : savedSection === "recent" ? "Games you open will appear here." : "Save a game from its details."
+      message = savedSection === "watches" ? "" : games.length ? "" : savedSection === "recent" ? "Games you open will appear here." : "Save a game from its details."
     }
     selectedId = ""
     canRetry = false
@@ -342,11 +354,11 @@ Ui.Panel {
     cancel()
     mode = "saved"
     offline = false
-    games = Store.savedGames(localData, savedSection)
+    games = savedSection === "watches" ? [] : Store.savedGames(localData, savedSection)
     coverage = ""
     canRetry = false
     selectedId = ""
-    message = games.length ? "" : savedSection === "recent" ? "Games you open will appear here." : "Save a game from its details."
+    message = savedSection === "watches" ? "" : games.length ? "" : savedSection === "recent" ? "Games you open will appear here." : "Save a game from its details."
     enrich(games)
   }
   function selectComparison(id) {
@@ -404,6 +416,15 @@ Ui.Panel {
     watches: root.localData.watches || []
     onUpdated: function(values) { root.localData = Object.assign({}, root.localData, {watches: values}); root.persist() }
   }
+  WishlistService {
+    id: wishlistNames
+    objectName: "gaugedb-wishlist-names"
+    onResolved: function(id, name) {
+      root.localData = Store.wishlistName(root.localData, id, name)
+      root.persist()
+      if (root.mode === "saved" && root.savedSection === "wishlist") root.games = Store.savedGames(root.localData, "wishlist")
+    }
+  }
   PublicRequest {
     id: wishlistRequest
     objectName: "gaugedb-wishlist-request"
@@ -412,12 +433,13 @@ Ui.Panel {
       try {
         let result = JSON.parse(value)
         if (!Array.isArray(result.ids) || result.ids.length > 40 || !Number.isInteger(result.total) || result.total < result.ids.length || result.ids.some(function(id) { return !Model.gameId(id) })) throw new Error("Invalid wishlist")
-        let games = result.ids.map(function(id) { return {id: id, name: "Steam app " + id.slice(6)} })
-        root.localData = Object.assign({}, root.localData, {wishlist: games})
+        root.localData = Store.importWishlist(root.localData, result.ids)
+        let games = root.localData.wishlist
         root.persist()
         root.savedSection = "wishlist"
         root.saved()
-        root.message = result.total > games.length ? "Showing the first 40 of " + result.total + " public wishlist games. Open one to load its saved catalogue name." : "Imported " + games.length + " public wishlist games. Open one for details."
+        wishlistNames.start(root.localData.wishlist, root.countryCode)
+        root.message = result.total > games.length ? "Showing the first 40 of " + result.total + " public wishlist games." : "Imported " + games.length + " public wishlist games."
       } catch(error) { root.message = "Steam returned an unexpected wishlist; existing saved games kept." }
     }
   }
@@ -737,7 +759,7 @@ Ui.Panel {
               onClicked: { root.localData = Object.assign({}, root.localData, {backgroundWatches: root.localData.backgroundWatches !== true}); root.persist() }
             }
             Label { width: parent.width; text: "Opt-in checks every 30 minutes for up to 10 watched games. Notifications use saved price observations, not live Steam quotes."; font.pixelSize: Math.max(12, root.fontRoles.caption) }
-            Action { text: "Check watches now"; enabled: root.storageReady && (root.localData.watches || []).length > 0; onClicked: watchService.check() }
+            Action { text: watchService.busy ? "Checking watches…" : "Check watches now"; enabled: root.storageReady && !watchService.busy && (root.localData.watches || []).length > 0; onClicked: watchService.check() }
             Label { width: parent.width; visible: watchService.status !== ""; text: watchService.status }
             Label { text: "Open in" }
             Row {
@@ -797,13 +819,14 @@ Ui.Panel {
               onClicked: root.deals()
             }
           }
-          Row {
+          Flow {
             width: parent.width
             visible: root.mode === "saved"
             spacing: Style.space(8)
-            Action { width: (parent.width - parent.spacing * 2) / 3; text: "Favourites"; checked: root.savedSection === "favourites"; onClicked: { root.savedSection = "favourites"; root.saved() } }
-            Action { width: (parent.width - parent.spacing * 2) / 3; text: "Recent"; checked: root.savedSection === "recent"; onClicked: { root.savedSection = "recent"; root.saved() } }
-            Action { width: (parent.width - parent.spacing * 2) / 3; text: "Wishlist"; checked: root.savedSection === "wishlist"; onClicked: { root.savedSection = "wishlist"; root.saved() } }
+            Action { width: parent.width < 420 ? (parent.width - parent.spacing) / 2 : (parent.width - parent.spacing * 3) / 4; text: "Favourites"; checked: root.savedSection === "favourites"; onClicked: { root.savedSection = "favourites"; root.saved() } }
+            Action { width: parent.width < 420 ? (parent.width - parent.spacing) / 2 : (parent.width - parent.spacing * 3) / 4; text: "Recent"; checked: root.savedSection === "recent"; onClicked: { root.savedSection = "recent"; root.saved() } }
+            Action { width: parent.width < 420 ? (parent.width - parent.spacing) / 2 : (parent.width - parent.spacing * 3) / 4; text: "Wishlist"; checked: root.savedSection === "wishlist"; onClicked: { root.savedSection = "wishlist"; root.saved() } }
+            Action { width: parent.width < 420 ? (parent.width - parent.spacing) / 2 : (parent.width - parent.spacing * 3) / 4; text: "Watches"; checked: root.savedSection === "watches"; onClicked: { root.savedSection = "watches"; root.saved() } }
           }
           RowLayout {
             width: parent.width
@@ -846,13 +869,44 @@ Ui.Panel {
             visible: root.games.length > 0 && !root.showingDetails
             Label {
               Layout.fillWidth: true
-              text: root.mode === "deals" ? "Regional deals" : root.mode === "saved" ? (root.savedSection === "wishlist" ? "Public wishlist" : root.savedSection === "recent" ? "Recent games" : "Favourites") : "Search results"
+              text: root.mode === "deals" ? "Regional deals" : root.mode === "saved" ? (root.savedSection === "watches" ? "Price watches" : root.savedSection === "wishlist" ? "Public wishlist" : root.savedSection === "recent" ? "Recent games" : "Favourites") : "Search results"
               font.pixelSize: Math.max(12, root.fontRoles.caption)
             }
             Label { text: String(root.games.length); font.pixelSize: Math.max(12, root.fontRoles.caption) }
           }
           Label { width: parent.width; text: root.message; visible: text !== ""; Accessible.role: Accessible.StaticText }
           Action { text: "Retry"; visible: !root.busy && root.canRetry; onClicked: root.retry() }
+          Column {
+            width: parent.width
+            visible: root.mode === "saved" && root.savedSection === "watches"
+            spacing: Style.space(12)
+            Label { text: "Price watches · " + root.localData.watches.length }
+            Action { text: watchService.busy ? "Checking…" : "Check watches now"; enabled: root.storageReady && !watchService.busy && root.localData.watches.length > 0; onClicked: watchService.check() }
+            Label { width: parent.width; visible: watchService.status !== ""; text: watchService.status }
+            Label { width: parent.width; visible: !root.localData.watches.length; text: "Start a watch from a game's fresh regional price." }
+            Repeater {
+              model: root.localData.watches || []
+              Column {
+                required property var modelData
+                width: parent.width
+                spacing: Style.space(4)
+                Label { width: parent.width; text: modelData.name + " · " + modelData.country }
+                Label { width: parent.width; text: "Latest " + History.amount(modelData.last, modelData.currency) + " · Started " + History.amount(modelData.baseline, modelData.currency) + (modelData.previous !== undefined && modelData.previous !== modelData.last ? "\nPrevious " + History.amount(modelData.previous, modelData.currency) + (modelData.last < modelData.previous ? " · Price fell" : " · Price rose") : "") }
+                Label { width: parent.width; text: "Observed " + new Date(modelData.observedAt).toISOString() + (modelData.checkedAt ? "\nLast checked " + new Date(modelData.checkedAt).toISOString() : "\nNot checked yet"); font.pixelSize: Math.max(12, root.fontRoles.caption) }
+                Row {
+                  width: parent.width; spacing: Style.space(8)
+                  Action { text: "Open game"; onClicked: root.openWatch(modelData.id, modelData.country) }
+                  Action { text: "Remove"; Accessible.name: "Remove watch for " + modelData.name + " in " + modelData.country; onClicked: root.removeWatch(modelData.id, modelData.country) }
+                }
+              }
+            }
+          }
+          Column {
+            width: parent.width
+            visible: root.mode === "saved" && root.savedSection === "wishlist"
+            Label { width: parent.width; visible: wishlistNames.status !== ""; text: wishlistNames.status }
+            Action { text: "Load missing names"; visible: !wishlistNames.busy && root.localData.wishlist.some(function(item) { return item.name === "Steam app " + item.id.slice(6) }); onClicked: wishlistNames.start(root.localData.wishlist, root.countryCode) }
+          }
           GridLayout {
             id: gameGrid
             width: parent.width
@@ -1051,7 +1105,7 @@ Ui.Panel {
                   text: "Open web price history"
                   onClicked: Quickshell.execDetached(["xdg-open", Model.links(result.modelData.id).history])
                 }
-                PriceHistory { width: parent.width; visible: root.mode === "details" && root.showPriceHistory && root.historyMessage === ""; dataset: root.priceHistoryData; foreground: root.foreground; fontFamily: root.fontFamily }
+                PriceHistory { width: parent.width; visible: root.mode === "details" && root.showPriceHistory && root.historyMessage === ""; dataset: root.priceHistoryData; foreground: root.foreground; fontFamily: root.fontFamily; onRevealRequested: function(item) { root.reveal(item) } }
                 Action {
                   width: parent.width
                   text: (root.localData.watches || []).some(function(item) { return item.id === result.modelData.id && item.country === root.countryCode }) ? "Remove local price watch" : "Watch for a lower saved price"

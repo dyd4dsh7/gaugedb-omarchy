@@ -1,3 +1,23 @@
+# Validation record
+
+## Current status — 17 October 2026
+
+Version 0.3.1 at `00eadbc20bc474ae473ff19730047f585cbb1bf1` is approved and
+published in the marketplace via issue #11307. The full seven-mode ARM native
+smoke rerun after guest login passed, in addition to the focused privacy/input
+checks below. Older sections retain their original dates and reflect what was
+known at that stage, rather than the current publication state.
+
+Version 0.4.0 is under validation. Its source/model suite passes 47 tests / 218
+assertions and six Python helper tests; official manifest validation passes.
+The original temporary VM is no longer present. Its saved checkpoint is in
+iCloud; restoration ran out of host disk space and was stopped at the owner's
+request. No 0.4.0 VM visual pass is claimed. Linux release CI now runs the native
+checks in an isolated Wayland session; its result will be recorded separately.
+No previous desktop or native run verifies the new candidate.
+
+---
+
 # Release validation — 12 October 2026
 
 ## Verified
