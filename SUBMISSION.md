@@ -3,7 +3,7 @@
 The original submission below is historical. Version 0.3.1 was approved and
 published at `00eadbc20bc474ae473ff19730047f585cbb1bf1` via
 https://github.com/omacom/omarchy-plugin-marketplace/issues/11307.
-Version 0.4.0 uses a new exact-commit update request after its release checks; the release notes and update issue record the final SHA, CI and submission outcome.
+Version 0.4.1 supersedes 0.4.0 on update issue #11915 with the artwork response-size fix. The release and issue record the exact target SHA, CI and submission outcome.
 The original maintainer notes describe the older implementation, before opt-in
 background watches and bundled branding were added; see README.md for current
 behaviour and dependencies.

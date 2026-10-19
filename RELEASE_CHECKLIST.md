@@ -1,6 +1,13 @@
 # Marketplace release checks
 
-## Current release: 0.4.0
+## Current patch: 0.4.1
+
+- [x] Artwork metadata crosses the bounded public helper before reaching QML.
+- [x] Local 50 Bun tests / 236 assertions and ten Python tests pass.
+- [ ] Exact-commit Linux CI and maintainer review/publication: see issue #11915.
+- [ ] New UTM visual checks: not run; VM remains stopped at the owner's request.
+
+## Previous candidate: 0.4.0
 
 - [x] Public plugin-only source; MIT licensing and fixed-origin credential-free reads retained.
 - [x] JavaScript regressions and six Python helper boundary tests pass locally.

@@ -1,5 +1,26 @@
 # Validation record
 
+## Artwork transport fix — 20 October 2026
+
+Version 0.4.1 addresses maintainer feedback on issue #11915, comment 6279508621.
+Artwork metadata now uses the existing bounded Python public-fetch helper rather
+than Qt XMLHttpRequest. The helper reads at most 262145 bytes and rejects bodies
+over 262144 bytes before JSON decoding or returning anything to the shell; its
+serialized output is separately bounded. Inputs use stdin and the endpoint stays
+fixed to GaugeDB. Exact-game and trusted Steam capsule validation remain in QML.
+The eight-second artwork deadline, cancellation, optional-failure behavior and
+HTTP 429 queue stopping remain; 429 is conveyed through a dedicated exit code.
+
+Local checks pass: 50 Bun tests / 236 assertions and ten Python tests. The new
+regressions exercise an oversized chunked HTTP response, bounded pre-decode reads,
+valid metadata, output expansion, invalid IDs, 429 status, timeout and late replies.
+CI additionally runs strict QML lint, the official validator and eight native
+Wayland smoke modes, including artwork subprocess completion, 429 and cancellation.
+The exact pushed commit and CI outcome are recorded on the release/update issue.
+Local Docker was unavailable. The Linux-only clipboard helper cannot run locally
+because macOS rejects its virtual-memory ulimit; CI runs it on Linux. The UTM VM
+remains stopped at the owner's request; no new VM visual pass is claimed.
+
 ## Current status — 17 October 2026
 
 Version 0.3.1 at `00eadbc20bc474ae473ff19730047f585cbb1bf1` is approved and

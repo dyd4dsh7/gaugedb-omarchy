@@ -130,10 +130,10 @@ Ui.Panel {
     serial += 1
     deadline.stop()
     artworkDeadline.stop()
+    artworkRetry.stop()
     artworkQueue = []
-    let oldArtwork = artworkPending
     artworkPending = null
-    if (oldArtwork) oldArtwork.abort()
+    artworkRequest.cancel()
     let previous = pending
     pending = null
     if (previous) previous.abort()
@@ -207,39 +207,39 @@ Ui.Panel {
   }
   function fetchPresentation() {
     if (!root.opened || artworkPending || !artworkQueue.length) return
+    if (artworkRequest.busy || artworkRequest.process.running) { artworkRetry.restart(); return }
     let gameId = artworkQueue[0]
     artworkQueue = artworkQueue.slice(1)
-    let generation = serial
-    let xhr = new XMLHttpRequest()
-    artworkPending = xhr
-    xhr.onreadystatechange = function() {
-      if (xhr.readyState !== XMLHttpRequest.DONE || generation !== root.serial || root.artworkPending !== xhr) return
-      artworkDeadline.stop()
-      root.artworkPending = null
-      if (xhr.status === 429) { root.artworkQueue = []; return }
-      if (xhr.status === 200) {
-        try {
-          let item = Model.decodePresentation(xhr.responseText, gameId)
-          let next = Object.assign({}, root.presentation)
-          next[gameId] = item
-          let keys = Object.keys(next)
-          while (keys.length > 30) delete next[keys.shift()]
-          root.presentation = next
-        } catch (error) { /* Optional artwork never blocks saved game data. */ }
-      }
-      root.fetchPresentation()
-    }
-    try {
-      xhr.open("GET", Model.presentationUrl(gameId))
-      xhr.setRequestHeader("Accept", "application/json")
-      artworkDeadline.restart()
-      xhr.send()
-    } catch (error) {
+    artworkPending = { gameId: gameId, generation: serial }
+    artworkDeadline.restart()
+    if (!artworkRequest.request(["presentation", gameId.slice(6)])) {
       artworkDeadline.stop()
       artworkPending = null
-      xhr.abort()
-      Qt.callLater(function() { if (generation === root.serial) root.fetchPresentation() })
+      Qt.callLater(function() { root.fetchPresentation() })
     }
+  }
+  function finishPresentation(value, success, rateLimited) {
+    let request = artworkPending
+    if (!request || request.generation !== serial || !root.opened) return
+    artworkDeadline.stop()
+    artworkPending = null
+    if (rateLimited) { artworkQueue = []; return }
+    if (success) {
+      try {
+        let item = Model.decodePresentation(value, request.gameId)
+        let next = Object.assign({}, presentation)
+        next[request.gameId] = item
+        let keys = Object.keys(next)
+        while (keys.length > 30) delete next[keys.shift()]
+        presentation = next
+      } catch (error) { /* Optional artwork never blocks saved game data. */ }
+    }
+    Qt.callLater(function() { root.fetchPresentation() })
+  }
+  function artworkTimedOut() {
+    artworkPending = null
+    artworkRequest.cancel()
+    Qt.callLater(function() { root.fetchPresentation() })
   }
   function search() { startApplied = true; mode = "search"; selectedId = ""; call("search_games", { query: query.text }) }
   function deals() { startApplied = true; mode = "deals"; selectedId = ""; call("find_deals", { country: countryCode }) }
@@ -476,12 +476,13 @@ Ui.Panel {
   Timer {
     id: artworkDeadline
     interval: 8000
-    onTriggered: {
-      let previous = root.artworkPending
-      root.artworkPending = null
-      if (previous) previous.abort()
-      root.fetchPresentation()
-    }
+    onTriggered: root.artworkTimedOut()
+  }
+  Timer { id: artworkRetry; interval: 50; onTriggered: root.fetchPresentation() }
+  PublicRequest {
+    id: artworkRequest
+    objectName: "gaugedb-artwork-request"
+    onFinished: function(value, success) { root.finishPresentation(value, success, artworkRequest.rateLimited) }
   }
 
   component Artwork: Item {

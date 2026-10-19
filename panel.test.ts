@@ -91,6 +91,17 @@ function harness(failMethod = "") {
     wishlistRequest: { cancel() {} },
     wishlistNames: { cancel() {} },
     historyRequest: { cancel() {} },
+    artworkRequest: {
+      busy: false,
+      process: { running: false },
+      cancelled: false,
+      calls: [] as string[][],
+      request(args: string[]) {
+        if (failMethod === "GET" || this.busy) return false;
+        this.calls.push(args); this.busy = true; return true;
+      },
+      cancel() { this.busy = false; this.cancelled = true; },
+    },
     storageReady: true,
     startApplied: false,
     showHelp: false,
@@ -131,6 +142,7 @@ function harness(failMethod = "") {
     listCoverage: "",
     deadline: timer(),
     artworkDeadline: timer(),
+    artworkRetry: timer(),
     writeDelay: timer(),
     stateFile: {
       setText(text: string) {
@@ -164,9 +176,12 @@ function harness(failMethod = "") {
         | "openWatch"
         | "setCountry"
         | "saved"
+        | "finishPresentation"
+        | "artworkTimedOut"
+        | "fetchPresentation"
         | "loadState"
         | "writeState",
-        (...args: string[]) => void
+        (...args: any[]) => void
       > & {
         favourite(game: { id: string; name: string }): void;
         selectComparison(id: string): void;
@@ -258,7 +273,7 @@ describe("Omarchy panel request methods", () => {
     requests[1].finish(200, response(state.serial));
     expect(state.games[0].id).toBe("steam:620");
     state.cancel();
-    expect(requests[2].aborted).toBe(true);
+    expect(state.artworkRequest.cancelled).toBe(true);
     expect(state.busy).toBe(false);
     expect(state.deadline.running).toBe(false);
   });
@@ -277,17 +292,66 @@ describe("Omarchy panel request methods", () => {
     expect(state.games).toHaveLength(1);
     expect(state.canRetry).toBe(false);
     expect(state.artworkPending).toBeNull();
-    later.forEach((fn) => fn());
     expect(state.artworkDeadline.running).toBe(false);
   });
   test("rate limiting and duplicate completion callbacks do not restart artwork", () => {
     const { state, requests } = harness();
     state.search();
     requests[0].finish(200, response(state.serial));
-    requests[1].finish(429, "");
+    state.artworkRequest.busy = false;
+    state.finishPresentation("", false, true);
     requests[0].finish(200, response(state.serial));
-    expect(requests).toHaveLength(2);
+    expect(requests).toHaveLength(1);
+    expect(state.artworkRequest.calls).toEqual([["presentation", "620"]]);
     expect(state.artworkQueue).toHaveLength(0);
+  });
+  test("bounded artwork completion retains exact-game validation and ignores cancellation", () => {
+    const { state, requests } = harness();
+    state.search();
+    requests[0].finish(200, response(state.serial));
+    expect(state.artworkRequest.calls).toEqual([["presentation", "620"]]);
+    state.artworkRequest.busy = false;
+    state.finishPresentation(JSON.stringify({results:[{appId:620,image:"https://shared.akamai.steamstatic.com/steam/apps/620/capsule_231x87.jpg",detail:"Valve"}]}), true, false);
+    expect(state.presentation["steam:620"].detail).toBe("Valve");
+    expect(state.presentation["steam:620"].image).toContain("/620/");
+    expect(state.games[0].id).toBe("steam:620");
+    delete state.presentation["steam:620"];
+    state.artworkQueue = ["steam:620"];
+    state.fetchPresentation();
+    state.cancel();
+    state.finishPresentation('{"results":[{"appId":620,"detail":"stale"}]}', true, false);
+    expect(state.presentation["steam:620"]).toBeUndefined();
+  });
+  test("artwork timeout and rejected metadata preserve game data and release transport", () => {
+    const { state, requests } = harness();
+    state.search();
+    requests[0].finish(200, response(state.serial));
+    state.artworkTimedOut();
+    expect(state.artworkPending).toBeNull();
+    expect(state.artworkRequest.cancelled).toBe(true);
+    state.finishPresentation('{"results":[{"appId":620,"detail":"late"}]}', true, false);
+    expect(state.presentation).toEqual({});
+    state.artworkQueue = ["steam:620"];
+    state.fetchPresentation();
+    state.artworkRequest.busy = false;
+    state.finishPresentation("x".repeat(262145), true, false);
+    expect(state.presentation).toEqual({});
+    expect(state.games).toHaveLength(1);
+    expect(state.canRetry).toBe(false);
+  });
+  test("a terminating artwork child retains the queue until transport is idle", () => {
+    const { state } = harness();
+    state.artworkQueue = ["steam:620"];
+    state.artworkRequest.process.running = true;
+    state.fetchPresentation();
+    expect(state.artworkQueue).toEqual(["steam:620"]);
+    expect(state.artworkRequest.calls).toHaveLength(0);
+    expect(state.artworkRetry.running).toBe(true);
+    state.artworkRequest.process.running = false;
+    state.fetchPresentation();
+    expect(state.artworkRequest.calls).toEqual([["presentation","620"]]);
+    state.cancel();
+    expect(state.artworkRetry.running).toBe(false);
   });
   test("query edits cancel stale work; country edits clear cached navigation", () => {
     const { state, requests } = harness();

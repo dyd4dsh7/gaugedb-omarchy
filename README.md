@@ -8,7 +8,7 @@ from an Omarchy bar panel. Built for **Omarchy Quattro / Omarchy 4** and Quicksh
 **Version 0.4.0 adds a Watches list, saved wishlist names and readable history observations.**
 Version 0.3.1 was approved and published at `00eadbc20bc474ae473ff19730047f585cbb1bf1`
 via [#11307](https://github.com/omacom/omarchy-plugin-marketplace/issues/11307).
-Version 0.4.0 requires a separate exact-commit marketplace review.
+Version 0.4.1 fixes bounded artwork metadata downloads and requires exact-commit marketplace review.
 ARM UTM desktop, native input, strict QML lint and regression results are
 documented in [VALIDATION.md](VALIDATION.md), including remaining limitations.
 

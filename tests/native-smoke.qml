@@ -9,6 +9,7 @@ Item {
   id: test
   property int ticks: 0
   property int phase: 0
+  property int artworkStartedTick: 0
   readonly property string mode: Quickshell.env("GAUGEDB_TEST_MODE")
   function check(value, message) {
     if (!value) { console.error("GAUGEDB_NATIVE_FAIL: " + message); Qt.quit(); throw new Error(message) }
@@ -42,6 +43,16 @@ Item {
       if (test.phase === 0) {
         test.check(panel.fontRoles.body > 0 && panel.fontRoles.caption > 0, "native font roles")
         test.check(widget.barMetrics.statusSlot > 0, "native bar roles")
+        if (test.mode === "artwork") {
+          let reader = test.find(panel, "gaugedb-artwork-request", [])
+          test.check(reader, "bounded artwork transport exists")
+          reader.process.command = ["python3", Quickshell.env("GAUGEDB_PUBLIC_PROVIDER")]
+          panel.controller.show()
+          test.check(panel.opened, "native artwork panel open")
+          panel.games = [{id:"steam:620",name:"Portal 2"}]
+          panel.enrich(panel.games)
+          test.phase = 70; return
+        }
         if (test.mode === "features") {
           let wishlist = test.find(panel, "gaugedb-wishlist-request", [])
           let input = test.find(panel, "gaugedb-steam-id", [])
@@ -93,6 +104,40 @@ Item {
         panel.offline = true
         panel.games = [{ id: "steam:620", name: "Portal 2" }, { id: "steam:730", name: "Counter-Strike 2" }]
         test.phase = 1; return
+      }
+      if (test.phase >= 70) {
+        let reader = test.find(panel, "gaugedb-artwork-request", [])
+        if (test.phase === 70) {
+          if (reader.busy || panel.artworkPending) return
+          test.check(panel.presentation["steam:620"] && panel.presentation["steam:620"].detail === "Controlled artwork", "native bounded artwork completion")
+          panel.enrich([{id:"steam:730"},{id:"steam:440"}])
+          test.phase = 71; return
+        }
+        if (test.phase === 71) {
+          if (reader.busy || panel.artworkPending) return
+          test.check(reader.rateLimited && panel.artworkQueue.length === 0, "native artwork 429 stops queue")
+          test.check(!panel.presentation["steam:440"], "rate limited queue not fetched")
+          panel.enrich([{id:"steam:440"}])
+          panel.cancel()
+          test.phase = 72; return
+        }
+        if (test.phase === 72) {
+          if (reader.process.running) return
+          test.check(!panel.presentation["steam:440"] && panel.games[0].id === "steam:620", "native artwork cancellation preserves game data")
+          panel.enrich([{id:"steam:440"},{id:"steam:570"}])
+          test.artworkStartedTick = test.ticks
+          test.phase = 73; return
+        }
+        if (test.phase === 73) {
+          if (test.ticks - test.artworkStartedTick < 4) return
+          test.check(reader.process.running, "delayed artwork child running")
+          panel.artworkTimedOut()
+          test.phase = 74; return
+        }
+        if (reader.busy || reader.process.running || panel.artworkPending || panel.artworkQueue.length) return
+        test.check(panel.presentation["steam:570"] && !panel.presentation["steam:440"], "timeout waits for child exit before continuing artwork queue")
+        console.log("GAUGEDB_NATIVE_PASS: bounded artwork, rate limit, cancellation and delayed child timeout")
+        Qt.quit(); return
       }
       if (test.phase >= 60) {
         let wishlist = test.find(panel, "gaugedb-wishlist-request", [])

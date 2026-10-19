@@ -4,6 +4,7 @@ import Quickshell.Io
 QtObject {
   id: root
   property bool busy: false
+  property bool rateLimited: false
   property bool exitSeen: false
   property var requestArguments: []
   signal finished(string value, bool success)
@@ -12,12 +13,13 @@ QtObject {
     stdinEnabled: true
     onStarted: write(JSON.stringify(root.requestArguments) + "\n")
     stdout: StdioCollector { id: output }
-    onExited: function(code, status) { root.exitSeen = true; root.complete(output.text, code === 0 && status === 0) }
+    onExited: function(code, status) { root.exitSeen = true; root.rateLimited = code === 29 && status === 0; root.complete(output.text, code === 0 && status === 0) }
     onRunningChanged: if (!running && root.busy && !root.exitSeen) root.complete("", false)
   }
   function request(args) {
     if (busy || process.running) return false
     root.requestArguments = args
+    rateLimited = false
     exitSeen = false
     busy = true
     process.running = true

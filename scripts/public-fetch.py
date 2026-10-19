@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Bounded, credential-free reads from fixed public GaugeDB/Valve endpoints."""
-import json, re, sys, urllib.request, urllib.parse
+import json, re, sys, urllib.request, urllib.parse, urllib.error
 LIMIT = 262144
 class FixedRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -17,6 +17,11 @@ def request(args):
         if not re.fullmatch(r"[0-9]{17}", sid) or not 76561197960265729 <= int(sid) <= 76561202255233023:
             raise ValueError("Enter an individual SteamID64")
         url = "https://api.steampowered.com/IWishlistService/GetWishlist/v1/?steamid=" + sid
+    elif action == "presentation" and len(values) == 1:
+        app = values[0]
+        if not re.fullmatch(r"[1-9][0-9]{0,9}", app) or int(app) > 2147483647:
+            raise ValueError("Invalid game")
+        url = "https://gaugedb.com/api/search?q=" + app
     elif action in ("history", "watch") and len(values) == 2:
         app, country = values
         if not re.fullmatch(r"[1-9][0-9]{0,9}", app) or int(app) > 2147483647 or not re.fullmatch(r"[A-Z]{2}", country):
@@ -28,7 +33,7 @@ def request(args):
             body = json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_game","arguments":{"id":"steam:"+app,"country":country}}}).encode()
     else:
         raise ValueError("Unsupported action")
-    req = urllib.request.Request(url, data=body, headers={"Accept":"application/json, text/event-stream" if action == "watch" else "application/json", "Content-Type":"application/json", "User-Agent":"GaugeDB-Omarchy/0.4.0"})
+    req = urllib.request.Request(url, data=body, headers={"Accept":"application/json, text/event-stream" if action == "watch" else "application/json", "Content-Type":"application/json", "User-Agent":"GaugeDB-Omarchy/0.4.1"})
     with urllib.request.build_opener(FixedRedirect()).open(req, timeout=12) as response:
         if action == "wishlist" and response.headers.get("x-eresult", "1") != "1":
             raise ValueError("Wishlist unavailable")
@@ -62,5 +67,7 @@ if __name__ == "__main__":
     try:
         if len(sys.argv) != 1: raise ValueError("Arguments must use stdin")
         print(request(read_arguments(sys.stdin)))
+    except urllib.error.HTTPError as error:
+        sys.exit(29 if error.code == 429 else 1)
     except Exception:
         sys.exit(1)
