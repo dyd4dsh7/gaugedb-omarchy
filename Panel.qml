@@ -506,6 +506,7 @@ Ui.Panel {
     }
     Image {
       id: picture
+      objectName: "gaugedb-capsule"
       anchors.fill: parent
       source: root.opened && !root.offline ? artwork.imageUrl : ""
       fillMode: Image.PreserveAspectFit

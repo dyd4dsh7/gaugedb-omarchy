@@ -150,6 +150,9 @@ Item {
         if (test.phase === 70) {
           if (reader.busy || panel.artworkPending) return
           test.check(panel.presentation["steam:620"] && panel.presentation["steam:620"].detail === "Controlled artwork", "native bounded artwork completion")
+          let capsule = test.find(panel, "gaugedb-capsule", [])
+          if (!capsule || capsule.status === Image.Loading) return
+          test.check(capsule.status === Image.Ready && String(capsule.source).indexOf("data:image/jpeg;base64,") === 0, "native artwork renders bounded JPEG bytes without remote image source")
           panel.enrich([{id:"steam:730"},{id:"steam:440"}])
           test.phase = 71; return
         }
@@ -176,7 +179,7 @@ Item {
         }
         if (reader.busy || reader.process.running || panel.artworkPending || panel.artworkQueue.length) return
         test.check(panel.presentation["steam:570"] && !panel.presentation["steam:440"], "timeout waits for child exit before continuing artwork queue")
-        console.log("GAUGEDB_NATIVE_PASS: bounded artwork, rate limit, cancellation and delayed child timeout")
+        console.log("GAUGEDB_NATIVE_PASS: bounded JPEG rendering, artwork rate limit, cancellation and delayed child timeout")
         Qt.quit(); return
       }
       if (test.phase >= 60) {

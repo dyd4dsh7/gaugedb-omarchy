@@ -1,6 +1,15 @@
 # Marketplace release checks
 
-## Current patch: 0.4.2
+## Current patch: 0.4.3
+
+- [x] Capsule bytes and JPEG dimensions are bounded before QML; Qt receives data URLs only.
+- [x] All five redirect statuses close without reading response bodies.
+- [x] Local 51 Bun tests / 247 assertions and 18 Python tests pass.
+- [x] Live four-tool MCP reads and bounded capsule loading pass.
+- [ ] Exact-commit Linux CI and marketplace review/publication: see issue #11915.
+- [ ] New UTM visual checks: not run; VM remains stopped at the owner's request.
+
+## Previous patch: 0.4.2
 
 - [x] All four core MCP tools use bounded transport before response JSON decoding or shell delivery.
 - [x] Local 51 Bun tests / 244 assertions and 13 Python tests pass, including oversized HTTP streams and delayed replacement.

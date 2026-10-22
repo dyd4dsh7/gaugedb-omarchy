@@ -249,14 +249,11 @@ function decodePresentation(text, id) {
   for (var i = 0; i < data.results.length; i++) {
     var item = data.results[i];
     if (!item || item.appId !== appId) continue;
-    var image = typeof item.image === "string" ? item.image : "";
-    var trusted = new RegExp(
-      "^https://(?:shared\\.(?:akamai|fastly)|cdn\\.(?:akamai|cloudflare))\\.steamstatic\\.com/(?:store_item_assets/)?steam/apps/" +
-        appId +
-        "/(?:[a-f0-9]+/)?(?:capsule_231x87|capsule_sm_120)(?:_alt_assets_\\d+)?(?:_2x)?\\.jpg(?:\\?[^\\s]*)?$",
-    );
+    var image = typeof item.imageData === "string" ? item.imageData : "";
+    // Only bounded helper-produced JPEG bytes may reach Qt; never a remote URL.
+    var trusted = image.length <= 174787 && /^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]*={0,2}$/.test(image);
     return {
-      image: trusted.test(image) ? image : "",
+      image: trusted ? image : "",
       detail: typeof item.detail === "string" ? item.detail.slice(0, 300) : "",
     };
   }

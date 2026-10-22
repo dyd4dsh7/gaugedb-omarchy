@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Disposable native test provider. Inputs must arrive via stdin, never argv.
-import json, sys
+import base64, json, sys
+from pathlib import Path
 from datetime import datetime, timezone
 assert len(sys.argv) == 1
 args = json.loads(sys.stdin.readline(4097))
@@ -26,7 +27,7 @@ elif args[0] == "presentation":
             sys.exit(1)
         signal.signal(signal.SIGTERM, delayed_exit)
         time.sleep(1.0)
-    result = {"results":[{"appId":int(args[1]),"detail":"Controlled artwork", "image":"https://shared.akamai.steamstatic.com/steam/apps/"+args[1]+"/capsule_231x87.jpg"}]}
+    result = {"results":[{"appId":int(args[1]),"detail":"Controlled artwork", "imageData":"data:image/jpeg;base64,"+base64.b64encode((Path(__file__).parent/"capsule.jpg").read_bytes()).decode()}]}
 elif args == ["wishlist", "76561197960265729"]:
     result = {"ids": ["steam:730", "steam:440"], "total": 2}
 elif args[0] == "watch" and args[1] in ["730", "440"] and args[2] == "NZ":

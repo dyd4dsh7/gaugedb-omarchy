@@ -77,6 +77,115 @@ class Reads(unittest.TestCase):
         finally:
             server.shutdown();server.server_close();thread.join()
 
+    def jpeg(self, width=231, height=87):
+        return b"\xff\xd8\xff\xc0\x00\x0b\x08"+height.to_bytes(2,"big")+width.to_bytes(2,"big")+b"\x01\x01\x11\x00\xff\xd9"
+
+    def test_capsule_bytes_are_bounded_and_only_jpeg_data_reaches_shell(self):
+        import base64
+        url="https://shared.akamai.steamstatic.com/steam/apps/620/capsule_231x87.jpg"
+        metadata={"results":[{"appId":730,"image":url},{"appId":620,"detail":"Valve","image":url,"imageData":"data:image/svg+xml,bad"}]}
+        seen=[]
+        raw=self.jpeg()
+        class ImageOpener:
+            def open(inner,req,timeout):
+                seen.append(req.full_url)
+                return Response(json.dumps(metadata).encode() if len(seen)==1 else raw)
+        with patch.object(fetch.urllib.request,"build_opener",return_value=ImageOpener()):
+            item=json.loads(fetch.request(["presentation","620"]))["results"][0]
+        self.assertEqual(seen,["https://gaugedb.com/api/search?q=620",url])
+        self.assertEqual(base64.b64decode(item["imageData"].split(",")[1]),raw)
+        self.assertNotIn("image",item)
+        for raw in [b"x"*(fetch.IMAGE_LIMIT+1),self.jpeg(65535,65535),b"<svg></svg>",b"\xff\xd8",self.jpeg(0,1)]:
+            seen.clear()
+            with patch.object(fetch.urllib.request,"build_opener",return_value=ImageOpener()):
+                item=json.loads(fetch.request(["presentation","620"]))["results"][0]
+                self.assertEqual(item,{"appId":620,"detail":"Valve","imageData":""})
+        for invalid in [url.replace("/620/","/730/"),url.replace("shared.akamai.steamstatic.com","example.com"),"file:///private/file","data:image/jpeg;base64,/9j/"]:
+            metadata["results"][1]["image"]=invalid
+            seen.clear()
+            with patch.object(fetch.urllib.request,"build_opener",return_value=ImageOpener()):
+                self.assertEqual(json.loads(fetch.request(["presentation","620"]))["results"][0]["imageData"],"")
+            self.assertEqual(len(seen),1)
+
+    def test_streamed_capsules_stop_at_image_limit_and_preserve_detail(self):
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        from threading import Thread
+        url="https://shared.akamai.steamstatic.com/steam/apps/620/capsule_231x87.jpg"
+        reads=[]
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self,*args): pass
+            def do_GET(self):
+                self.send_response(200)
+                if self.path == "/metadata":
+                    body=json.dumps({"results":[{"appId":620,"detail":"Valve","image":url}]}).encode()
+                    self.send_header("Content-Length",str(len(body)));self.end_headers();self.wfile.write(body);return
+                self.send_header("Transfer-Encoding","chunked");self.end_headers()
+                try:
+                    for unused in range(1024): self.wfile.write(b"1000\r\n"+b"x"*4096+b"\r\n")
+                    self.wfile.write(b"0\r\n\r\n")
+                except (BrokenPipeError,ConnectionResetError): pass
+        server=ThreadingHTTPServer(("127.0.0.1",0),Handler)
+        thread=Thread(target=server.serve_forever,daemon=True);thread.start()
+        real=fetch.urllib.request.build_opener()
+        class LocalOpener:
+            def open(inner,req,timeout):
+                path="/metadata" if req.full_url=="https://gaugedb.com/api/search?q=620" else "/image"
+                if path=="/image": self.assertEqual(req.full_url,url)
+                response=real.open("http://127.0.0.1:"+str(server.server_port)+path,timeout=timeout)
+                original=response.read
+                def bounded(size): reads.append(size);return original(size)
+                response.read=bounded
+                return response
+        try:
+            with patch.object(fetch.urllib.request,"build_opener",return_value=LocalOpener()):
+                self.assertEqual(json.loads(fetch.request(["presentation","620"]))["results"][0],{"appId":620,"detail":"Valve","imageData":""})
+            self.assertEqual(reads,[fetch.LIMIT+1,fetch.IMAGE_LIMIT+1])
+        finally:
+            server.shutdown();server.server_close();thread.join()
+
+    def test_real_jpeg_control_and_image_rate_limit(self):
+        raw=(Path(__file__).parent/"capsule.jpg").read_bytes()
+        self.assertEqual(fetch.jpeg_size(raw),(1,1))
+        url="https://cdn.cloudflare.steamstatic.com/steam/apps/620/capsule_sm_120.jpg"
+        metadata={"results":[{"appId":620,"detail":"Valve","image":url}]}
+        with patch.object(fetch.urllib.request,"build_opener",return_value=Opener(raw)):
+            result=fetch.presentation(metadata,"620")
+        self.assertTrue(result["results"][0]["imageData"].startswith("data:image/jpeg;base64,/9j/"))
+        with patch.object(fetch.urllib.request,"build_opener") as factory:
+            factory.return_value.open.side_effect=fetch.urllib.error.HTTPError(url,429,"limited",{},None)
+            with self.assertRaises(fetch.urllib.error.HTTPError): fetch.presentation(metadata,"620")
+
+    def test_slow_image_deadline_preserves_detail_within_remaining_budget(self):
+        import time
+        metadata={"results":[{"appId":620,"detail":"Valve","image":"https://shared.akamai.steamstatic.com/steam/apps/620/capsule_231x87.jpg"}]}
+        class SlowImage:
+            def open(self,*args,**kwargs): time.sleep(1);raise AssertionError("Image deadline did not fire")
+        started=time.monotonic()
+        with patch.object(fetch.urllib.request,"build_opener",return_value=SlowImage()):
+            result=fetch.presentation(metadata,"620",0.05)
+        self.assertEqual(result["results"][0],{"appId":620,"detail":"Valve","imageData":""})
+        self.assertLess(time.monotonic()-started,0.5)
+        with patch.object(fetch.time,"monotonic",side_effect=[10,16.5]), patch.object(fetch.urllib.request,"build_opener",return_value=Opener(json.dumps(metadata).encode())), patch.object(fetch,"capsule_bytes",side_effect=TimeoutError) as image:
+            self.assertEqual(json.loads(fetch.request(["presentation","620"]))["results"][0]["detail"],"Valve")
+            self.assertEqual(image.call_args.args[1],0.5)
+        with patch.object(fetch.urllib.request,"build_opener") as network:
+            self.assertEqual(fetch.presentation(metadata,"620",0)["results"][0]["detail"],"Valve")
+            network.assert_not_called()
+
+    def test_all_redirect_statuses_close_without_reading_any_body(self):
+        class Body:
+            closed=False
+            def read(self,*args): raise AssertionError("redirect body must never be read")
+            def close(self): self.closed=True
+        for code in [301,302,303,307,308]:
+            for location in ["https://gaugedb.com/next","https://example.com/next"]:
+                body=Body()
+                handler=fetch.FixedRedirect()
+                callback=getattr(handler,"http_error_"+str(code))
+                with self.assertRaisesRegex(ValueError,"Redirects are not allowed"):
+                    callback(Request("https://gaugedb.com/test"),body,code,"redirect",{"location":location})
+                self.assertTrue(body.closed)
+
     def test_artwork_uses_fixed_origin_and_bounds_bytes_before_decode(self):
         seen = {}
         class BoundedResponse(Response):
@@ -101,7 +210,7 @@ class Reads(unittest.TestCase):
             self.assertEqual(json.loads(fetch.request(["presentation","620"]))["results"][0]["appId"],620)
         raw = json.dumps({"results":[],"extra":"\u00e9"*60000},ensure_ascii=False).encode()
         with patch.object(fetch.urllib.request,"build_opener",return_value=Opener(raw)):
-            with self.assertRaisesRegex(ValueError,"Output too large"): fetch.request(["presentation","620"])
+            self.assertEqual(json.loads(fetch.request(["presentation","620"])), {"results":[]})
 
     def test_artwork_chunked_http_is_bounded_before_json_decode(self):
         from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer

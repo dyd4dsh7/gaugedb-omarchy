@@ -1,5 +1,32 @@
 # Validation record
 
+## Capsule and redirect transport fix — 22 October 2026
+
+Version 0.4.3 closes two follow-up response paths found during the owner-requested
+review. The existing presentation helper now fetches an exact-app Steam capsule,
+reads at most 131073 bytes and rejects images above 131072 bytes before image
+header parsing or shell delivery. Only JPEG headers with dimensions at most
+1024 by 1024 are accepted. The helper reconstructs the matched item and emits a
+JPEG data URL; upstream imageData is discarded. Model.decodePresentation accepts
+only bounded JPEG data URLs, so Qt receives no remote image URL. The existing
+262144-byte serialized-output cap also bounds base64 expansion. This validates
+headers and dimensions, not every JPEG bitstream; Qt retains decode-error fallback.
+Optional image failures preserve matched game detail. An absolute image deadline
+uses the remaining seven-second helper budget, reserving time for delivery before
+the panel deadline, including trickling image responses; 429, cancellation, the
+eight-second deadline and the artwork queue remain. No disk image cache is added.
+
+All redirects, including same-origin redirects, are rejected and closed before
+urllib can drain a body. This intentionally replaces the earlier same-origin
+redirect support. Live public search/details/deals/comparison and bounded capsule
+loading still pass without redirects. Local checks: 51 Bun tests / 247 assertions
+and 18 Python tests. Regressions cover oversized chunked image streams, invalid
+formats/dimensions, wrong app/host, injected image data, JPEG control, image 429,
+and 301/302/303/307/308 handlers that must close without any body read. Native CI
+adds actual JPEG data-URL rendering to the existing artwork smoke mode. Exact
+commit and CI outcomes are recorded on the release and update issue #11915.
+The UTM VM remains stopped; no new desktop visual pass is claimed.
+
 ## Core MCP transport fix — 22 October 2026
 
 Version 0.4.2 addresses issue #11915 comment 6332404107. Search, details,

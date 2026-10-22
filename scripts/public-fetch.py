@@ -1,13 +1,76 @@
 #!/usr/bin/env python3
 """Bounded, credential-free reads from fixed public GaugeDB/Valve endpoints."""
-import json, re, sys, urllib.request, urllib.parse, urllib.error
+import base64, json, re, signal, sys, time, urllib.request, urllib.parse, urllib.error
 LIMIT = 262144
+IMAGE_LIMIT = 131072
 class FixedRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
-        old, new = urllib.parse.urlsplit(req.full_url), urllib.parse.urlsplit(newurl)
-        if new.scheme != "https" or new.netloc != old.netloc:
-            raise ValueError("Unexpected redirect")
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+        # The base handler drains redirect bodies with an unbounded fp.read().
+        # Reject before it can do so, including same-origin redirects.
+        if fp is not None: fp.close()
+        raise ValueError("Redirects are not allowed")
+
+def jpeg_size(raw):
+    if not raw.startswith(b"\xff\xd8"): raise ValueError("Not a JPEG")
+    offset = 2
+    while offset < len(raw):
+        if raw[offset] != 255: raise ValueError("Invalid JPEG header")
+        while offset < len(raw) and raw[offset] == 255: offset += 1
+        if offset >= len(raw): break
+        marker = raw[offset]; offset += 1
+        if marker in (0, 0xd8, 0xd9, 0xda) or 0xd0 <= marker <= 0xd7:
+            raise ValueError("Missing JPEG frame")
+        if offset + 2 > len(raw): break
+        length = int.from_bytes(raw[offset:offset+2], "big")
+        if length < 2 or offset + length > len(raw): break
+        if marker in (0xc0, 0xc1, 0xc2):
+            if length < 8: break
+            height = int.from_bytes(raw[offset+3:offset+5], "big")
+            width = int.from_bytes(raw[offset+5:offset+7], "big")
+            if not 1 <= width <= 1024 or not 1 <= height <= 1024:
+                raise ValueError("JPEG dimensions too large")
+            return width, height
+        # Other frame encodings are not supported by this capsule transport.
+        if 0xc0 <= marker <= 0xcf and marker not in (0xc4, 0xc8, 0xcc): break
+        offset += length
+    raise ValueError("Invalid JPEG frame")
+
+def capsule_bytes(url, budget):
+    # Reserve time to emit metadata before the panel's eight-second deadline.
+    # A socket timeout alone does not stop a continuously trickling response.
+    def expired(signum, frame): raise TimeoutError("Image deadline")
+    previous = signal.signal(signal.SIGALRM, expired)
+    signal.setitimer(signal.ITIMER_REAL, budget)
+    try:
+        req = urllib.request.Request(url, headers={"Accept":"image/jpeg", "User-Agent":"GaugeDB-Omarchy/0.4.3"})
+        with urllib.request.build_opener(FixedRedirect()).open(req, timeout=budget) as response:
+            raw = response.read(IMAGE_LIMIT+1)
+        if len(raw) > IMAGE_LIMIT: raise ValueError("Image too large")
+        jpeg_size(raw)
+        return raw
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
+
+def presentation(data, app, budget=6):
+    if not isinstance(data, dict) or not isinstance(data.get("results"), list):
+        raise ValueError("Invalid presentation")
+    for item in data["results"]:
+        if not isinstance(item, dict) or type(item.get("appId")) is not int or item["appId"] != int(app): continue
+        result = {"appId":int(app), "detail":item["detail"][:300] if isinstance(item.get("detail"), str) else "", "imageData":""}
+        url = item.get("image")
+        pattern = r"https://(?:shared\.(?:akamai|fastly)|cdn\.(?:akamai|cloudflare))\.steamstatic\.com/(?:store_item_assets/)?steam/apps/" + app + r"/(?:[a-f0-9]+/)?(?:capsule_231x87|capsule_sm_120)(?:_alt_assets_\d+)?(?:_2x)?\.jpg(?:\?[^\s]*)?"
+        if budget > 0 and isinstance(url, str) and len(url) <= 2048 and re.fullmatch(pattern, url):
+            try:
+                raw = capsule_bytes(url, budget)
+                result["imageData"] = "data:image/jpeg;base64," + base64.b64encode(raw).decode("ascii")
+            except urllib.error.HTTPError as error:
+                error.close()
+                if error.code == 429: raise
+            except Exception:
+                pass  # Optional image failure must preserve the matched game detail.
+        return {"results":[result]}
+    return {"results":[]}
 
 def mcp_body(raw):
     data = json.loads(raw)
@@ -41,6 +104,7 @@ def mcp_body(raw):
     return raw.encode("utf-8")
 
 def request(args):
+    started = time.monotonic()
     action, values = args[0], args[1:]
     body = None
     if action == "mcp" and len(values) == 1:
@@ -67,7 +131,7 @@ def request(args):
             body = json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_game","arguments":{"id":"steam:"+app,"country":country}}}).encode()
     else:
         raise ValueError("Unsupported action")
-    req = urllib.request.Request(url, data=body, headers={"Accept":"application/json, text/event-stream" if action in ("watch", "mcp") else "application/json", "Content-Type":"application/json", "User-Agent":"GaugeDB-Omarchy/0.4.2"})
+    req = urllib.request.Request(url, data=body, headers={"Accept":"application/json, text/event-stream" if action in ("watch", "mcp") else "application/json", "Content-Type":"application/json", "User-Agent":"GaugeDB-Omarchy/0.4.3"})
     if action == "mcp": req.add_header("MCP-Protocol-Version", "2025-03-26")
     with urllib.request.build_opener(FixedRedirect()).open(req, timeout=12) as response:
         if action == "wishlist" and response.headers.get("x-eresult", "1") != "1":
@@ -75,6 +139,7 @@ def request(args):
         raw = response.read(LIMIT+1)
     if len(raw) > LIMIT: raise ValueError("Response too large")
     data = json.loads(raw.decode("utf-8"))
+    if action == "presentation": data = presentation(data, values[0], max(0, min(6, 7 - (time.monotonic() - started))))
     if action == "wishlist":
         items = data.get("response", {}).get("items")
         if not isinstance(items, list) or len(items) > 5000:
@@ -103,6 +168,7 @@ if __name__ == "__main__":
         if len(sys.argv) != 1: raise ValueError("Arguments must use stdin")
         print(request(read_arguments(sys.stdin)))
     except urllib.error.HTTPError as error:
+        error.close()
         sys.exit(29 if error.code == 429 else 1)
     except Exception:
         sys.exit(1)

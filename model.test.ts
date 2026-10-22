@@ -102,14 +102,14 @@ describe("Omarchy public catalogue client", () => {
     expect(model.reviewsView({ reviews: { count: 0.5, score: 101 } }).count).toBe("Unknown");
     expect(model.reviewsView({ reviews: { score: 101 } }).score).toBe("Unknown");
   });
-  test("artwork enrichment matches the exact app and accepts only collected Steam capsules", () => {
+  test("artwork enrichment matches the exact app and accepts only bounded JPEG data", () => {
     const image =
-      "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/620/abcd/capsule_231x87.jpg?t=1";
+      "data:image/jpeg;base64,/9j/wAALCAABAAEBAREA/9k=";
     const reply = (url: string, appId = 620) =>
       JSON.stringify({
         results: [
           { title: "Package", href: "/sub/620", image: "https://example.com/wrong.jpg" },
-          { appId, detail: "Valve", image: url },
+          { appId, detail: "Valve", imageData: url },
         ],
       });
     expect(model.presentationUrl("steam:620")).toBe("https://gaugedb.com/api/search?q=620");
@@ -119,8 +119,14 @@ describe("Omarchy public catalogue client", () => {
       "",
     );
     expect(
-      model.decodePresentation(reply(image.replace("/620/", "/730/")), "steam:620").image,
+      model.decodePresentation(reply("https://shared.akamai.steamstatic.com/steam/apps/620/capsule_231x87.jpg"), "steam:620").image,
     ).toBe("");
+    expect(model.decodePresentation(reply("data:image/svg+xml;base64,PHN2Zz4="), "steam:620").image).toBe("");
+    expect(model.decodePresentation(reply("data:image/jpeg;base64,/9j/" + "A".repeat(174786)), "steam:620").image).toBe("");
+    const maximumJpeg = Buffer.alloc(131072);
+    maximumJpeg.set([255,216,255,192]);
+    const maximumImage = "data:image/jpeg;base64," + maximumJpeg.toString("base64");
+    expect(model.decodePresentation(reply(maximumImage), "steam:620").image).toBe(maximumImage);
     expect(model.decodePresentation(reply(image, 730), "steam:620").detail).toBe("");
     expect(model.activityView({ activity: { players: 1278, peak24: null } }).players).toBe(
       "1,278",

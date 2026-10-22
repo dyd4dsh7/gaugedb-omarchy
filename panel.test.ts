@@ -322,9 +322,9 @@ describe("Omarchy panel request methods", () => {
     requests[0].finish(200, response(state.serial));
     expect(state.artworkRequest.calls).toEqual([["presentation", "620"]]);
     state.artworkRequest.busy = false;
-    state.finishPresentation(JSON.stringify({results:[{appId:620,image:"https://shared.akamai.steamstatic.com/steam/apps/620/capsule_231x87.jpg",detail:"Valve"}]}), true, false);
+    state.finishPresentation(JSON.stringify({results:[{appId:620,imageData:"data:image/jpeg;base64,/9j/wAALCAABAAEBAREA/9k=",detail:"Valve"}]}), true, false);
     expect(state.presentation["steam:620"].detail).toBe("Valve");
-    expect(state.presentation["steam:620"].image).toContain("/620/");
+    expect(state.presentation["steam:620"].image).toStartWith("data:image/jpeg;base64,");
     expect(state.games[0].id).toBe("steam:620");
     delete state.presentation["steam:620"];
     state.artworkQueue = ["steam:620"];
