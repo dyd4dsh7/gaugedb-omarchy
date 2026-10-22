@@ -22,7 +22,10 @@ empty helper output, bounded reads from growing streams, descriptor replacement,
 UTF-8/UTF-16 budgets, short reads, symlinks and FIFOs. Native CI adds four modes
 for oversized-file preservation, large Unicode restore/save, file-symlink canaries
 and FIFO rejection, alongside the nine existing modes. Exact-commit CI results
-are recorded on the release and issue #11915. The UTM VM remains stopped; no new
+are recorded on the release and its linked update request. Version 0.4.3 at
+63985ccbed36329b17d2d53a720fbd449e5ac79d was verified and published through
+completed issue #11915; that approval does not cover 0.4.4. The UTM VM remains
+stopped; no new
 desktop visual pass is claimed.
 
 ## Capsule and redirect transport fix — 22 October 2026
