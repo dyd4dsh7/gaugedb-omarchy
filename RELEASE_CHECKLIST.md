@@ -1,6 +1,14 @@
 # Marketplace release checks
 
-## Current patch: 0.4.1
+## Current patch: 0.4.2
+
+- [x] All four core MCP tools use bounded transport before response JSON decoding or shell delivery.
+- [x] Local 51 Bun tests / 244 assertions and 13 Python tests pass, including oversized HTTP streams and delayed replacement.
+- [x] Live public search/details/deals/comparison pass through the shipped helper and model.
+- [ ] Exact-commit Linux CI and maintainer review/publication: see issue #11915.
+- [ ] New UTM visual checks: not run; VM remains stopped at the owner's request.
+
+## Previous patch: 0.4.1
 
 - [x] Artwork metadata crosses the bounded public helper before reaching QML.
 - [x] Local 50 Bun tests / 236 assertions and ten Python tests pass.

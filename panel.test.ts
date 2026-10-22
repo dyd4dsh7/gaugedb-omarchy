@@ -39,39 +39,8 @@ const response = (id: number, game = "steam:620") =>
 function harness(failMethod = "") {
   const later: (() => void)[] = [];
   const writes: string[] = [];
-  class Xhr {
-    static DONE = 4;
-    readyState = 0;
-    status = 0;
-    responseText = "";
-    aborted = false;
-    method = "";
-    body = "";
-    onreadystatechange = () => {};
-    constructor() {
-      requests.push(this);
-    }
-    open(method: string) {
-      this.method = method;
-      if (method === failMethod) throw new Error("Transport unavailable");
-    }
-    setRequestHeader() {}
-    send(body = "") {
-      this.body = body;
-    }
-    abort() {
-      this.aborted = true;
-      this.readyState = 4;
-      this.onreadystatechange();
-    }
-    finish(status: number, text: string) {
-      this.status = status;
-      this.responseText = text;
-      this.readyState = 4;
-      this.onreadystatechange();
-    }
-  }
-  const requests: Xhr[] = [];
+  const requests: { body: string; aborted: boolean; finish(status: number, value: string): void }[] = [];
+  let active: (typeof requests)[number] | null = null;
   const timer = () => ({
     running: false,
     stop() {
@@ -117,7 +86,21 @@ function harness(failMethod = "") {
     savedSection: "favourites",
     offline: false,
     listOffline: false,
-    XMLHttpRequest: Xhr,
+    mcpRequest: {
+      busy: false,
+      process: { running: false },
+      request(args: string[]) {
+        const request = { body: args[1], aborted: false, finish(status: number, value: string) {
+          if (active !== request) return;
+          active = null;
+          state.mcpRequest.busy = false;
+          state.finishMcp(value, status === 200, status === 429);
+        }};
+        if (failMethod === "POST") return false;
+        requests.push(request); active = request; this.busy = true; return true;
+      },
+      cancel() { if (active) active.aborted = true; active = null; this.busy = false; },
+    },
     Qt: {
       callLater(fn: () => void) {
         later.push(fn);
@@ -143,6 +126,7 @@ function harness(failMethod = "") {
     deadline: timer(),
     artworkDeadline: timer(),
     artworkRetry: timer(),
+    mcpRetry: timer(),
     writeDelay: timer(),
     stateFile: {
       setText(text: string) {
@@ -162,6 +146,8 @@ function harness(failMethod = "") {
   return {
     state: state as typeof state &
       Record<
+        | "startMcp"
+        | "finishMcp"
         | "setStartView"
         | "applyStartView"
         | "dismiss"
@@ -276,6 +262,31 @@ describe("Omarchy panel request methods", () => {
     expect(state.artworkRequest.cancelled).toBe(true);
     expect(state.busy).toBe(false);
     expect(state.deadline.running).toBe(false);
+  });
+  test("replacement waits for child shutdown and cancellation clears queued MCP work", () => {
+    const { state, requests } = harness();
+    state.search();
+    const oldId = state.serial;
+    state.mcpRequest.process.running = true;
+    state.query.text = "Half-Life";
+    state.search();
+    expect(requests).toHaveLength(1);
+    expect(state.mcpRetry.running).toBe(true);
+    requests[0].finish(200, response(oldId));
+    expect(state.games).toHaveLength(0);
+    state.mcpRequest.process.running = false;
+    state.startMcp();
+    expect(JSON.parse(requests[1].body).params.arguments.query).toBe("Half-Life");
+    requests[1].finish(200, response(state.serial));
+    expect(state.games[0].id).toBe("steam:620");
+    state.mcpRequest.process.running = true;
+    state.search();
+    state.cancel();
+    state.mcpRequest.process.running = false;
+    state.startMcp();
+    expect(requests).toHaveLength(2);
+    expect(state.mcpRetry.running).toBe(false);
+    expect(state.pending).toBeNull();
   });
   test("transport setup failures recover without a stuck loading state", () => {
     const { state } = harness("POST");

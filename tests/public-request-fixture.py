@@ -4,7 +4,20 @@ import json, sys
 from datetime import datetime, timezone
 assert len(sys.argv) == 1
 args = json.loads(sys.stdin.readline(4097))
-if args[0] == "presentation":
+if args[0] == "mcp":
+    request = json.loads(args[1])
+    values = request["params"]["arguments"]
+    if values.get("query") == "limited": sys.exit(29)
+    if values.get("query") == "slow":
+        import time, signal
+        def delayed_exit(*args):
+            time.sleep(0.3)
+            sys.exit(1)
+        signal.signal(signal.SIGTERM, delayed_exit)
+        time.sleep(1.0)
+    ids = values.get("ids", [values.get("id", "steam:620")])
+    result = {"jsonrpc":"2.0","id":request["id"],"result":{"structuredContent":{"coverage":"Controlled MCP","games":[{"id":game,"name":"Controlled MCP game"} for game in ids]}}}
+elif args[0] == "presentation":
     if args[1] == "730": sys.exit(29)
     if args[1] == "440":
         import time, signal

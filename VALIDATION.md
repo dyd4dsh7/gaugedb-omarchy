@@ -1,5 +1,26 @@
 # Validation record
 
+## Core MCP transport fix — 22 October 2026
+
+Version 0.4.2 addresses issue #11915 comment 6332404107. Search, details,
+regional deals and comparison now use the existing Python helper instead of Qt
+XMLHttpRequest. All remote bodies are read with a 262145-byte ceiling and rejected
+above 262144 bytes before response JSON decoding or shell delivery. Serialized
+stdout is separately bounded. The fixed MCP endpoint, protocol headers, request
+IDs, exact-game/country validation and cache keys remain. Requests use bounded
+stdin; cancelled children must finish before queued replacement requests start.
+The 12-second panel deadline, 429 recovery and offline summaries remain.
+
+Local validation passes: 51 Bun tests / 244 assertions and 13 Python tests.
+Real local HTTP chunked and declared-length oversized MCP responses fail with
+empty stdout/stderr; Unicode output expansion also fails closed. Live public
+search, details, deals and comparison pass through the shipped helper and model.
+Native CI adds a ninth mode for the four tools, 429, cancellation and delayed
+child replacement. Exact-commit CI results are recorded on the release and issue.
+Local Docker is unavailable; Linux CI owns strict QML lint, manifest validation
+and native Wayland checks. The UTM VM remains stopped; no new desktop visual
+validation is claimed.
+
 ## Artwork transport fix — 20 October 2026
 
 Version 0.4.1 addresses maintainer feedback on issue #11915, comment 6279508621.

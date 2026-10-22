@@ -134,9 +134,9 @@ Ui.Panel {
     artworkQueue = []
     artworkPending = null
     artworkRequest.cancel()
-    let previous = pending
+    mcpRetry.stop()
     pending = null
-    if (previous) previous.abort()
+    mcpRequest.cancel()
     busy = false
   }
   function close() { countryPopup.close(); cancel(); root.controller.hide() }
@@ -160,46 +160,42 @@ Ui.Panel {
     requestBody = body
     busy = true
     message = name === "find_deals" ? "Loading regional deals…" : name === "get_game" ? "Loading game…" : "Searching games…"
-    let xhr = new XMLHttpRequest()
-    pending = xhr
-    xhr.onreadystatechange = function() {
-      if (xhr.readyState !== XMLHttpRequest.DONE || id !== root.serial || root.pending !== xhr) return
-      deadline.stop()
-      root.pending = null
-      root.busy = false
-      if (xhr.status !== 200) {
-        root.canRetry = true
-        root.recover(xhr.status === 429 ? "Too many requests. Wait a minute and retry."
-          : "GaugeDB is unavailable. Check your connection and retry.")
-        return
-      }
-      try {
-        let requestArgs = JSON.parse(body).params.arguments
-        let result = Model.decode(xhr.responseText, id, { gameId: requestArgs.id, ids: requestArgs.ids, country: requestArgs.country })
-        root.games = result.games
-        root.coverage = result.coverage
-        root.message = result.games.length ? (result.missingIds && result.missingIds.length ? "Some selected games have no saved data." : "") : "No saved results for this request."
-        root.localData = Store.put(root.localData, body, result, Date.now())
-        if (name === "get_game" && result.games.length) {
-          root.localData = Store.remember(root.localData, result.games[0])
-          root.localData = Store.wishlistName(root.localData, result.games[0].id, result.games[0].name)
-        }
-        root.persist()
-        root.enrich(result.games)
-      } catch (error) { root.canRetry = true; root.recover("GaugeDB returned an unexpected response. Try again.") }
+    pending = { id: id, body: body, name: name, started: false }
+    deadline.restart()
+    startMcp()
+  }
+  function startMcp() {
+    if (!pending || pending.started) return
+    if (mcpRequest.busy || mcpRequest.process.running) { mcpRetry.restart(); return }
+    pending.started = true
+    if (!mcpRequest.request(["mcp", pending.body])) finishMcp("", false, false)
+  }
+  function finishMcp(value, success, rateLimited) {
+    let request = pending
+    if (!request || !request.started || request.id !== serial) return
+    deadline.stop()
+    pending = null
+    busy = false
+    if (!success) {
+      canRetry = true
+      recover(rateLimited ? "Too many requests. Wait a minute and retry."
+        : "GaugeDB is unavailable. Check your connection and retry.")
+      return
     }
     try {
-      xhr.open("POST", Model.endpoint)
-      xhr.setRequestHeader("Content-Type", "application/json")
-      xhr.setRequestHeader("Accept", "application/json, text/event-stream")
-      xhr.setRequestHeader("MCP-Protocol-Version", "2025-03-26")
-      deadline.restart()
-      xhr.send(body)
-    } catch (error) {
-      cancel()
-      canRetry = true
-      recover("GaugeDB is unavailable. Check your connection and retry.")
-    }
+      let requestArgs = JSON.parse(request.body).params.arguments
+      let result = Model.decode(value, request.id, { gameId: requestArgs.id, ids: requestArgs.ids, country: requestArgs.country })
+      games = result.games
+      coverage = result.coverage
+      message = result.games.length ? (result.missingIds && result.missingIds.length ? "Some selected games have no saved data." : "") : "No saved results for this request."
+      localData = Store.put(localData, request.body, result, Date.now())
+      if (request.name === "get_game" && result.games.length) {
+        localData = Store.remember(localData, result.games[0])
+        localData = Store.wishlistName(localData, result.games[0].id, result.games[0].name)
+      }
+      persist()
+      enrich(result.games)
+    } catch (error) { canRetry = true; recover("GaugeDB returned an unexpected response. Try again.") }
   }
   function enrich(items) {
     artworkQueue = items.slice(0, 5).filter(function(game) { return !root.presentation[game.id] }).map(function(game) { return game.id })
@@ -400,6 +396,12 @@ Ui.Panel {
   }
   Component.onDestruction: cancel()
 
+  Timer { id: mcpRetry; interval: 50; onTriggered: root.startMcp() }
+  PublicRequest {
+    id: mcpRequest
+    objectName: "gaugedb-mcp-request"
+    onFinished: function(value, success) { root.finishMcp(value, success, mcpRequest.rateLimited) }
+  }
   PublicRequest {
     id: historyRequest
     objectName: "gaugedb-history-request"

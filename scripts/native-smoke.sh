@@ -32,7 +32,7 @@ chmod 700 "$test_root/bin/notify-send"
 export PATH="$test_root/bin:$PATH"
 export GAUGEDB_NOTIFICATION_CAPTURE="$test_root/notification.json"
 export GAUGEDB_PUBLIC_PROVIDER="$plugin_root/tests/public-request-fixture.py"
-for mode in write read corrupt unsafe network clipboard features artwork; do
+for mode in write read corrupt unsafe network clipboard features artwork mcp; do
   export GAUGEDB_TEST_MODE="$mode"
   # Simulate an earlier permissive installation; the plugin must repair metadata.
   if [[ $mode == read ]]; then chmod 755 "$test_root/state/gaugedb-omarchy"; chmod 644 "$test_root/state/gaugedb-omarchy/state.json"; fi

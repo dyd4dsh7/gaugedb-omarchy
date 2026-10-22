@@ -43,6 +43,16 @@ Item {
       if (test.phase === 0) {
         test.check(panel.fontRoles.body > 0 && panel.fontRoles.caption > 0, "native font roles")
         test.check(widget.barMetrics.statusSlot > 0, "native bar roles")
+        if (test.mode === "mcp") {
+          let reader = test.find(panel, "gaugedb-mcp-request", [])
+          test.check(reader, "bounded core MCP transport exists")
+          reader.process.command = ["python3", Quickshell.env("GAUGEDB_PUBLIC_PROVIDER")]
+          let artwork = test.find(panel, "gaugedb-artwork-request", [])
+          artwork.process.command = ["python3", Quickshell.env("GAUGEDB_PUBLIC_PROVIDER")]
+          panel.controller.show()
+          panel.call("search_games", {query:"Portal"})
+          test.phase = 80; return
+        }
         if (test.mode === "artwork") {
           let reader = test.find(panel, "gaugedb-artwork-request", [])
           test.check(reader, "bounded artwork transport exists")
@@ -104,6 +114,36 @@ Item {
         panel.offline = true
         panel.games = [{ id: "steam:620", name: "Portal 2" }, { id: "steam:730", name: "Counter-Strike 2" }]
         test.phase = 1; return
+      }
+      if (test.phase >= 80) {
+        let reader = test.find(panel, "gaugedb-mcp-request", [])
+        if (test.phase === 85) {
+          if (test.ticks - test.artworkStartedTick < 4) return
+          test.check(reader.process.running, "slow MCP child running before replacement")
+          panel.call("search_games", {query:"replacement"})
+          test.check(panel.pending && !panel.pending.started, "replacement queued while child terminates")
+          test.phase = 86; return
+        }
+        if (panel.busy || reader.busy || reader.process.running) return
+        if (test.phase === 84) {
+          test.check(panel.canRetry && panel.message.indexOf("Too many requests") >= 0, "MCP 429 retry message")
+          panel.call("search_games", {query:"slow"})
+          test.artworkStartedTick = test.ticks
+          test.phase = 85; return
+        }
+        test.check(panel.games.length === (test.phase === 83 ? 2 : 1) && panel.coverage === "Controlled MCP", "native MCP result decoded")
+        if (test.phase === 80) panel.call("get_game", {id:"steam:620",country:"NZ"})
+        else if (test.phase === 81) panel.call("find_deals", {country:"NZ"})
+        else if (test.phase === 82) panel.call("compare_games", {ids:["steam:620","steam:730"],country:"NZ"})
+        else if (test.phase === 83) panel.call("search_games", {query:"limited"})
+        else {
+          panel.call("search_games", {query:"slow"})
+          panel.cancel()
+          test.check(!panel.pending && !panel.busy, "native MCP cancellation clears request")
+          console.log("GAUGEDB_NATIVE_PASS: core MCP tools, 429, cancellation and delayed child replacement")
+          Qt.quit(); return
+        }
+        test.phase++; return
       }
       if (test.phase >= 70) {
         let reader = test.find(panel, "gaugedb-artwork-request", [])
@@ -222,7 +262,7 @@ Item {
           panel.call("compare_games", { ids: ["steam:620", "steam:730"], country: "NZ" })
         } else {
           test.check(panel.games.length === 2, "Qt comparison games")
-          console.log("GAUGEDB_NATIVE_PASS: Qt HTTP details, search, deals and comparison")
+          console.log("GAUGEDB_NATIVE_PASS: bounded public HTTP details, search, deals and comparison")
           Qt.quit(); return
         }
         test.phase++; return
