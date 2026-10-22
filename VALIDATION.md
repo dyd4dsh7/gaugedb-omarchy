@@ -1,5 +1,30 @@
 # Validation record
 
+## Local state read fix — 22 October 2026
+
+Version 0.4.4 replaces the startup FileView read with scripts/state-read.py. The
+helper opens the directory and state file with no-follow descriptors, rejects
+nonregular files, and reads at most 4194305 bytes even if the file grows after
+its metadata check. Oversize, invalid UTF-8 or more than 1048576 UTF-16 units
+fail without emitting content to QML. The 4 MiB raw transport budget preserves
+valid existing Unicode files whose UTF-8 encoding exceeds 1 MiB; Store.read
+retains the existing 1048576-unit schema limit.
+
+FileView is writer-only with preload and watching disabled. It has no text/data/
+reload calls or load handlers, and gets a path only after bounded reading and
+model validation succeed. Existing atomic writes, 0700/0600 repair, and corrupt
+file preservation remain. A rejected read completes initialization with writes
+disabled; existing disk data and current session state are kept.
+
+Local checks pass: 53 Bun tests / 255 assertions, 18 public-fetch Python tests
+and six state-read Python tests. Regressions cover sparse oversized files with
+empty helper output, bounded reads from growing streams, descriptor replacement,
+UTF-8/UTF-16 budgets, short reads, symlinks and FIFOs. Native CI adds four modes
+for oversized-file preservation, large Unicode restore/save, file-symlink canaries
+and FIFO rejection, alongside the nine existing modes. Exact-commit CI results
+are recorded on the release and issue #11915. The UTM VM remains stopped; no new
+desktop visual pass is claimed.
+
 ## Capsule and redirect transport fix — 22 October 2026
 
 Version 0.4.3 closes two follow-up response paths found during the owner-requested

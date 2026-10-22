@@ -79,6 +79,7 @@ function harness(failMethod = "") {
     storageWriting: false,
     storageDirty: false,
     storageMessage: "",
+    stateDirectory: "/tmp/gaugedb-test",
     countryCode: "NZ",
     countryPopup: { close() {} },
     requestBody: "",
@@ -129,6 +130,7 @@ function harness(failMethod = "") {
     mcpRetry: timer(),
     writeDelay: timer(),
     stateFile: {
+      path: "",
       setText(text: string) {
         writes.push(text);
       },
@@ -165,6 +167,7 @@ function harness(failMethod = "") {
         | "finishPresentation"
         | "artworkTimedOut"
         | "fetchPresentation"
+        | "finishStateRead"
         | "loadState"
         | "writeState",
         (...args: any[]) => void
@@ -448,6 +451,29 @@ describe("Omarchy panel request methods", () => {
     requests[0].finish(200, response(state.serial));
     expect(state.games).toHaveLength(1);
     expect(state.mode).toBe("compare");
+  });
+  test("failed bounded state reads preserve session changes and never enable writes", () => {
+    const { state, writes } = harness();
+    state.storageReady = false;
+    state.localData = Store.toggle(state.localData, {id:"steam:620",name:"Portal 2"});
+    state.finishStateRead("", false);
+    state.writeState();
+    expect(state.storageReady).toBe(true);
+    expect(state.storageWritable).toBe(false);
+    expect(state.localData.favourites[0].id).toBe("steam:620");
+    expect(state.stateFile.path).toBe("");
+    expect(writes).toHaveLength(0);
+  });
+  test("bounded state success enables the writer only after model validation", () => {
+    const { state } = harness();
+    state.storageReady = false;
+    state.finishStateRead(Store.encode(Store.empty()), true);
+    expect(state.stateFile.path).toBe("/tmp/gaugedb-test/state.json");
+    const corrupt = harness().state;
+    corrupt.storageReady = false;
+    corrupt.finishStateRead("broken JSON", true);
+    expect(corrupt.stateFile.path).toBe("");
+    expect(corrupt.storageWritable).toBe(false);
   });
   test("invalid local data is preserved by disabling writes", () => {
     const { state } = harness();

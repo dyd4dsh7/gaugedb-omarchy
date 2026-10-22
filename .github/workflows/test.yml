@@ -13,6 +13,7 @@ jobs:
       - run: bun --no-env-file test
       - run: bash tests/clipboard-helper.test.sh
       - run: python3 tests/public-fetch.test.py
+      - run: python3 -B tests/state-read.test.py
 
   native-release:
     runs-on: ubuntu-latest

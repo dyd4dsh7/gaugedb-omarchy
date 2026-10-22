@@ -3,7 +3,7 @@
 The original submission below is historical. Version 0.3.1 was approved and
 published at `00eadbc20bc474ae473ff19730047f585cbb1bf1` via
 https://github.com/omacom/omarchy-plugin-marketplace/issues/11307.
-Version 0.4.3 supersedes 0.4.2 on update issue #11915 with bounded capsule bytes and redirect rejection; the earlier MCP and artwork metadata fixes remain. The release and issue record the exact target SHA, CI and submission outcome.
+Version 0.4.4 supersedes 0.4.3 on update issue #11915 with bounded local state reads and a writer-only FileView; the remote-response fixes remain. The release and issue record the exact target SHA, CI and submission outcome.
 The original maintainer notes describe the older implementation, before opt-in
 background watches and bundled branding were added; see README.md for current
 behaviour and dependencies.

@@ -42,7 +42,7 @@ def capsule_bytes(url, budget):
     previous = signal.signal(signal.SIGALRM, expired)
     signal.setitimer(signal.ITIMER_REAL, budget)
     try:
-        req = urllib.request.Request(url, headers={"Accept":"image/jpeg", "User-Agent":"GaugeDB-Omarchy/0.4.3"})
+        req = urllib.request.Request(url, headers={"Accept":"image/jpeg", "User-Agent":"GaugeDB-Omarchy/0.4.4"})
         with urllib.request.build_opener(FixedRedirect()).open(req, timeout=budget) as response:
             raw = response.read(IMAGE_LIMIT+1)
         if len(raw) > IMAGE_LIMIT: raise ValueError("Image too large")
@@ -131,7 +131,7 @@ def request(args):
             body = json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_game","arguments":{"id":"steam:"+app,"country":country}}}).encode()
     else:
         raise ValueError("Unsupported action")
-    req = urllib.request.Request(url, data=body, headers={"Accept":"application/json, text/event-stream" if action in ("watch", "mcp") else "application/json", "Content-Type":"application/json", "User-Agent":"GaugeDB-Omarchy/0.4.3"})
+    req = urllib.request.Request(url, data=body, headers={"Accept":"application/json, text/event-stream" if action in ("watch", "mcp") else "application/json", "Content-Type":"application/json", "User-Agent":"GaugeDB-Omarchy/0.4.4"})
     if action == "mcp": req.add_header("MCP-Protocol-Version", "2025-03-26")
     with urllib.request.build_opener(FixedRedirect()).open(req, timeout=12) as response:
         if action == "wishlist" and response.headers.get("x-eresult", "1") != "1":

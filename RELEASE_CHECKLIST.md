@@ -1,6 +1,14 @@
 # Marketplace release checks
 
-## Current patch: 0.4.3
+## Current patch: 0.4.4
+
+- [x] Local state reads are bounded before QML; FileView is writer-only.
+- [x] Unicode compatibility and corrupt/oversized-file preservation remain covered.
+- [x] Local 53 Bun tests / 255 assertions and 24 Python tests pass.
+- [ ] Exact-commit Linux CI, including 13 native modes: see release/update issue.
+- [ ] Marketplace approval/publication and new UTM visuals remain unconfirmed; VM stays stopped.
+
+## Previous patch: 0.4.3
 
 - [x] Capsule bytes and JPEG dimensions are bounded before QML; Qt receives data URLs only.
 - [x] All five redirect statuses close without reading response bodies.

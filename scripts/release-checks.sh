@@ -6,6 +6,7 @@ plugin_root=$(cd "$(dirname "$0")/.." && pwd)
 bash "$OMARCHY_PATH/bin/omarchy-plugin-validate" "$plugin_root"
 bash "$plugin_root/scripts/lint-qml.sh"
 python3 -B "$plugin_root/tests/public-fetch.test.py"
+python3 -B "$plugin_root/tests/state-read.test.py"
 bash "$plugin_root/tests/clipboard-helper.test.sh"
 bash "$plugin_root/scripts/test-clipboard-input.sh"
 bash "$plugin_root/scripts/test-notification-privacy.sh"

@@ -332,6 +332,17 @@ Ui.Panel {
       storageMessage = "Saved data could not be read. Existing file preserved; changes stay in this session."
     }
   }
+  function finishStateRead(value, success) {
+    if (storageReady) return
+    if (!success) {
+      storageReady = true
+      storageWritable = false
+      storageMessage = "Saved data could not be read. Existing file preserved; changes stay in this session."
+      return
+    }
+    loadState(value)
+    if (storageWritable) stateFile.path = stateDirectory + "/state.json"
+  }
   function setCountry(code) {
     if (!Countries.supported(code)) return
     if (countryCode !== code) { countryCode = code; countryChanged() }
@@ -453,25 +464,31 @@ Ui.Panel {
   Timer { id: writeDelay; interval: 200; onTriggered: root.writeState() }
   Process {
     // Fixed shell program; paths and initial JSON are separate positional arguments.
-    // Establish confidentiality before FileView reads or performs its atomic writes.
+    // Establish confidentiality before the bounded read or atomic writes.
     command: ["sh", "-c", "set -eu; umask 077; d=$1; f=$d/state.json; [ ! -L \"$d\" ]; mkdir -p -- \"$d\"; chmod 700 -- \"$d\"; if [ ! -e \"$f\" ]; then (set -C; printf \"%s\" \"$2\" > \"$f\"); fi; [ -f \"$f\" ] && [ ! -L \"$f\" ]; chmod 600 -- \"$f\"", "gaugedb-state", root.stateDirectory, Store.encode(Store.empty())]
     running: true
     onExited: function(exitCode, exitStatus) {
-      if (exitCode === 0 && exitStatus === 0) stateFile.path = root.stateDirectory + "/state.json"
+      if (exitCode === 0 && exitStatus === 0) stateReader.running = true
       else { root.storageReady = true; root.storageWritable = false; root.storageMessage = "Private local storage is unavailable; changes stay in this session." }
     }
   }
+  Process {
+    id: stateReader
+    property bool exitSeen: false
+    command: ["timeout", "--signal=TERM", "--kill-after=1s", "5s", "python3", decodeURIComponent(String(Qt.resolvedUrl("scripts/state-read.py")).slice(7)), root.stateDirectory]
+    stdout: StdioCollector { id: stateOutput }
+    onExited: function(code, status) { stateReader.exitSeen = true; root.finishStateRead(stateOutput.text, code === 0 && status === 0) }
+    onRunningChanged: if (!running && !stateReader.exitSeen && !root.storageReady) root.finishStateRead("", false)
+  }
   FileView {
     id: stateFile
+    objectName: "gaugedb-state-writer"
     path: ""
+    // Writer only. Calling text()/data()/reload() would bypass the helper limit.
+    preload: false
+    watchChanges: false
     atomicWrites: true
     printErrors: false
-    onLoaded: root.loadState(text())
-    onLoadFailed: function(error) {
-      root.storageReady = true
-      if (error === FileViewError.FileNotFound) { if (root.storageDirty) root.persist() }
-      else { root.storageWritable = false; root.storageMessage = "Local storage could not be read; changes stay in this session." }
-    }
     onSaved: { root.storageWriting = false; root.storageMessage = ""; if (root.storageDirty) root.persist() }
     onSaveFailed: { root.storageWriting = false; root.storageMessage = "Local changes could not be saved; kept for this session." }
   }

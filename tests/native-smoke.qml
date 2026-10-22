@@ -90,13 +90,20 @@ Item {
           panel.call("get_game", { id: "steam:620", country: "NZ" })
           test.phase = 4; return
         }
+        if (test.mode === "unicode") {
+          test.check(panel.storageWritable && panel.countryCode === "US" && panel.isFavourite("steam:620"), "large UTF-8 state restored")
+          panel.favourite({id:"steam:730",name:"Counter-Strike 2"})
+          test.phase = 10; return
+        }
         if (test.mode === "read") {
           test.check(panel.countryCode === "US" && panel.isFavourite("steam:620"), "restart restored country and favourite")
           console.log("GAUGEDB_NATIVE_PASS: restart read")
           Qt.quit(); return
         }
-        if (test.mode === "corrupt" || test.mode === "unsafe") {
-          test.check(!panel.storageWritable, "unsafe or corrupt storage disables writes")
+        if (["corrupt", "unsafe", "oversized", "filesymlink", "fifo"].indexOf(test.mode) >= 0) {
+          test.check(!panel.storageWritable, "unsafe, corrupt or oversized storage disables writes")
+          let writer = test.find(panel, "gaugedb-state-writer", [])
+          test.check(writer && writer.preload === false && !writer.loaded, "unsafe state never loaded into FileView")
           panel.favourite({ id: "steam:620", name: "Portal 2" })
           test.phase = 3; return
         }
@@ -114,6 +121,12 @@ Item {
         panel.offline = true
         panel.games = [{ id: "steam:620", name: "Portal 2" }, { id: "steam:730", name: "Counter-Strike 2" }]
         test.phase = 1; return
+      }
+      if (test.mode === "unicode") {
+        if (panel.storageDirty || panel.storageWriting) return
+        test.check(panel.storageWritable && panel.isFavourite("steam:730"), "Unicode state stays writable")
+        console.log("GAUGEDB_NATIVE_PASS: bounded Unicode state restore and atomic save")
+        Qt.quit(); return
       }
       if (test.phase >= 80) {
         let reader = test.find(panel, "gaugedb-mcp-request", [])
