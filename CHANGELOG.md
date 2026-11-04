@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.5 — Unreleased
+
+- Pause watch and wishlist-name batches together for 60 seconds after HTTP 429, then resume unfinished items without counting rate-limited requests as failures.
+- Report updated, unchanged, unavailable and failed watch checks separately. Record the last check time while retaining saved prices when a request fails or returns no usable quote.
+- Keep wishlist names loading while browsing within the panel; cancel pending lookups when closing the panel or changing store country.
+- Retain queued work while a cancelled helper process shuts down, so replacement batches do not lose items.
+- Keep notification delivery errors visible when later watch checks finish; clear them after a successful delivery.
+
+The implementation is committed at `11464fe6f31876bd3cfe6eba8f98c228d4883aa3`.
+Version 0.4.5 is prepared locally for review; no tag, release or marketplace update
+has been published. Validation and remaining release gates are recorded in
+[VALIDATION.md](VALIDATION.md) and [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
+
 ## 0.4.0
 
 - Manage exact-country watches in Saved, with previous/latest/starting prices, observation and check dates, manual-check status, opening and removal.

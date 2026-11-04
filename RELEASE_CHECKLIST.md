@@ -1,12 +1,24 @@
 # Marketplace release checks
 
-## Current patch: 0.4.4
+## Prepared patch: 0.4.5 — unpublished
+
+- [x] Manifest, development package and HTTP user agent identify version 0.4.5.
+- [x] Release notes describe cooldown, queue recovery, watch outcomes and wishlist navigation changes.
+- [x] After the local version bump, 63 Bun tests / 323 assertions and 24 Python tests pass; JSON/version consistency and git diff --check pass.
+- [x] Implementation commit `11464fe6f31876bd3cfe6eba8f98c228d4883aa3` passed [Linux CI](https://github.com/dyd4dsh7/gaugedb-omarchy/actions/runs/41918178906): 63 Bun tests / 323 assertions, 24 Python tests, strict zero-warning QML lint, clipboard/input and notification privacy checks, and all 13 native smoke modes.
+- [x] Twelve local native QML captures cover watch results, watch cooldown and wishlist cooldown at desktop and 390px in light/dark palettes. Headless Sway ran in emulated x86 Linux; UTM was not used.
+- [ ] Commit the reviewed 0.4.5 preparation and pass CI at that exact candidate SHA. The implementation run above predates this version bump.
+- [ ] Obtain separate authorization before tagging, publishing a release or submitting a marketplace update. No 0.4.5 publication is claimed.
+
+## Published patch: 0.4.4
 
 - [x] Local state reads are bounded before QML; FileView is writer-only.
 - [x] Unicode compatibility and corrupt/oversized-file preservation remain covered.
-- [x] Local 53 Bun tests / 255 assertions and 24 Python tests pass.
-- [ ] Exact-commit Linux CI, including 13 native modes: see release/update issue.
-- [ ] Marketplace approval/publication and new UTM visuals remain unconfirmed; VM stays stopped.
+- [x] Local 53 Bun tests / 255 assertions and 24 Python tests passed for that patch.
+- [x] [Exact-commit Linux CI](https://github.com/dyd4dsh7/gaugedb-omarchy/actions/runs/39730215106), including 13 native modes, passed at `176ba87dd1867451331a77ef21fe3e899d030a08`.
+- [x] That exact snapshot was approved, verified and published through [completed issue #12568](https://github.com/omacom/omarchy-plugin-marketplace/issues/12568).
+
+The UTM VM remains stopped. No new ARM/Hyprland desktop validation is claimed.
 
 ## Previous patch: 0.4.3
 
@@ -61,5 +73,7 @@ These are historical results, not a pass for changed 0.4.0 code.
 - Real public-profile wishlist testing is intentionally replaced by owner-approved
   controlled fixtures; no account credentials are used.
 
-The marketplace header logo/tag change is tracked separately in PR #11100.
-Approval, merge, plugin snapshot verification and live publication are distinct.
+The supported single preview image is the GaugeDB logo. The earlier custom
+header-logo/tag [PR #11100](https://github.com/omacom/omarchy-plugin-marketplace/pull/11100)
+was closed unmerged and is not a release gate. Approval, merge, plugin snapshot
+verification and live publication are distinct.

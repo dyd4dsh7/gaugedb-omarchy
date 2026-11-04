@@ -11,11 +11,13 @@ before shell delivery. The exact published marketplace snapshot is
 `176ba87dd1867451331a77ef21fe3e899d030a08` ([verification #12568](https://github.com/omacom/omarchy-plugin-marketplace/issues/12568)).
 Checks and their limits are documented in [VALIDATION.md](VALIDATION.md).
 
-Local changes prepared for the next release pause watch and wishlist batches for
-60 seconds after rate limiting, then resume unfinished items. Watch results
-separate updated, unchanged, unavailable and failed checks. Wishlist names keep
-loading while browsing within the panel; closing it or changing country cancels
-that work. These improvements are not yet published.
+**Version 0.4.5 is prepared for review and remains unreleased.** It pauses watch
+and wishlist batches for 60 seconds after rate limiting, then resumes unfinished
+items. Watch results separate updated, unchanged, unavailable and failed checks.
+Wishlist names keep loading while browsing within the panel; closing it or
+changing country cancels that work. Queued items survive helper shutdown, and
+notification delivery errors remain visible until a successful delivery.
+See the [0.4.5 release notes](CHANGELOG.md#045--unreleased).
 
 ## Features
 

@@ -1,5 +1,39 @@
 # Validation record
 
+## Version 0.4.5 preparation — 5 November 2026
+
+Version 0.4.5 is prepared locally for review. The manifest, development package
+and both public-fetch HTTP user agents identify 0.4.5. No tag, release or
+marketplace update has been published for this preparation.
+
+The implementation at `11464fe6f31876bd3cfe6eba8f98c228d4883aa3` passed
+[Linux CI](https://github.com/dyd4dsh7/gaugedb-omarchy/actions/runs/41918178906):
+63 Bun tests / 323 assertions, 18 public-fetch tests, six state-read tests,
+official manifest validation, strict zero-warning QML lint, native Qt input,
+notification privacy and all 13 headless Wayland smoke modes. The clipboard
+helper passed on both the Ubuntu runner and Arch native job with its existing
+64 MiB address-space limit intact. Its prior local failure was a Rosetta memory
+allocation failure; the safety limit was not relaxed.
+
+Twelve local captures of the same QML implementation were visually reviewed:
+watch outcome summaries with notification errors, watch cooldown and wishlist
+cooldown, each at 1280×900 and 390×844 in light/dark palettes. The actual host panel
+rendered under headless Sway in Docker Desktop's emulated x86 Linux runtime,
+using Qt 6.12.0 and Quickshell 0.3.2. No clipping or horizontal overflow was found.
+Native bindings also confirmed countdown updates, wishlist enrichment surviving
+internal navigation and cancellation on panel close. Fixtures supplied the watch
+states and theme palettes; this is not an ARM/Hyprland desktop or real-account
+wishlist pass. The pinned disposable host used the documented QtQuick 6.11
+compatibility import. UTM remained stopped; Docker was stopped after local QA.
+
+After the local version bump, all 63 Bun tests / 323 assertions and 24 Python
+tests passed again. JSON parsing and version consistency checks passed for the
+manifest, development package and both HTTP user agents; git diff --check passed.
+
+The CI and visual results above predate the local 0.4.5 version/notes preparation.
+The reviewed candidate needs its own exact-commit CI before publication. Earlier
+sections below retain historical versions, dates and coverage limits.
+
 ## Local state read fix — 22 October 2026
 
 Version 0.4.4 replaces the startup FileView read with scripts/state-read.py. The
