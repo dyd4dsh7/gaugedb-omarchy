@@ -123,7 +123,6 @@ Ui.Panel {
     if (busy) { message = "Request cancelled."; canRetry = true }
     clipboardPaste.cancel()
     wishlistRequest.cancel()
-    wishlistNames.cancel()
     historyRequest.cancel()
     showPriceHistory = false
     priceHistoryData = ({points:[],currency:"",actualStoreCountry:"",coverage:""})
@@ -139,7 +138,7 @@ Ui.Panel {
     mcpRequest.cancel()
     busy = false
   }
-  function close() { countryPopup.close(); cancel(); root.controller.hide() }
+  function close() { countryPopup.close(); wishlistNames.cancel(); cancel(); root.controller.hide() }
   function switchPanel(direction) {
     if (root.hostBar && typeof root.hostBar.switchPanelFrom === "function")
       return root.hostBar.switchPanelFrom(root.hostWidget || root, direction)
@@ -285,6 +284,7 @@ Ui.Panel {
     else search()
   }
   function countryChanged() {
+    wishlistNames.cancel()
     cancel()
     games = []
     coverage = ""
@@ -400,12 +400,12 @@ Ui.Panel {
     else if (top + item.height > scroll.contentY + scroll.height)
       scroll.contentY = Math.max(0, top + item.height - scroll.height)
   }
-  onOpenedChanged: { if (!opened) cancel(); else { root.applyStartView(); if (games.length && !offline) enrich(games) } }
+  onOpenedChanged: { if (!opened) { wishlistNames.cancel(); cancel() } else { root.applyStartView(); if (games.length && !offline) enrich(games) } }
   onSettingsChanged: {
     let code = String(root.setting("country", "NZ")).trim().toUpperCase()
     if (storageReady && Countries.supported(code) && code !== countryCode) root.setCountry(code)
   }
-  Component.onDestruction: cancel()
+  Component.onDestruction: { wishlistNames.cancel(); cancel() }
 
   Timer { id: mcpRetry; interval: 50; onTriggered: root.startMcp() }
   PublicRequest {
@@ -422,7 +422,9 @@ Ui.Panel {
       catch(error) { root.historyMessage = "Unexpected price history; no chart shown." }
     }
   }
+  RequestCooldown { id: requestCooldown }
   WatchService {
+    cooldown: requestCooldown
     id: watchService
     objectName: "gaugedb-watch-service"
     enabled: root.storageReady && root.localData.backgroundWatches === true
@@ -430,6 +432,7 @@ Ui.Panel {
     onUpdated: function(values) { root.localData = Object.assign({}, root.localData, {watches: values}); root.persist() }
   }
   WishlistService {
+    cooldown: requestCooldown
     id: wishlistNames
     objectName: "gaugedb-wishlist-names"
     onResolved: function(id, name) {

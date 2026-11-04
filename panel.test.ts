@@ -535,3 +535,12 @@ test("watch removal affects only the exact country and opening uses that region"
   state.openWatch("steam:620","US");
   expect(JSON.parse(requests[0].body).params.arguments).toEqual({id:"steam:620",country:"US"});
 });
+
+test("wishlist enrichment survives browsing but stops on close or country change", () => {
+  const {state}=harness();let cancelled=0;
+  state.wishlistNames.cancel=()=>{cancelled++};
+  state.search();state.details("steam:620");state.saved();
+  expect(cancelled).toBe(0);
+  state.close();expect(cancelled).toBe(1);
+  state.setCountry("US");expect(cancelled).toBe(2);
+});

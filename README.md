@@ -5,12 +5,17 @@
 Search Steam games, browse regional deals, save favourites and compare two games
 from an Omarchy bar panel. Built for **Omarchy Quattro / Omarchy 4** and Quickshell.
 
-**Version 0.4.0 adds a Watches list, saved wishlist names and readable history observations.**
-Version 0.3.1 was approved and published at `00eadbc20bc474ae473ff19730047f585cbb1bf1`
-via [#11307](https://github.com/omacom/omarchy-plugin-marketplace/issues/11307).
-Version 0.4.4 also bounds local state reads before shell delivery and requires exact-commit marketplace review.
-ARM UTM desktop, native input, strict QML lint and regression results are
-documented in [VALIDATION.md](VALIDATION.md), including remaining limitations.
+**Version 0.4.4** includes local price watches, public wishlist import, saved wishlist
+names, and in-panel price history. Requests and local state reads are bounded
+before shell delivery. The exact published marketplace snapshot is
+`176ba87dd1867451331a77ef21fe3e899d030a08` ([verification #12568](https://github.com/omacom/omarchy-plugin-marketplace/issues/12568)).
+Checks and their limits are documented in [VALIDATION.md](VALIDATION.md).
+
+Local changes prepared for the next release pause watch and wishlist batches for
+60 seconds after rate limiting, then resume unfinished items. Watch results
+separate updated, unchanged, unavailable and failed checks. Wishlist names keep
+loading while browsing within the panel; closing it or changing country cancels
+that work. These improvements are not yet published.
 
 ## Features
 

@@ -223,7 +223,7 @@ Item {
         }
         if (test.phase === 62) {
           if (watches.request.busy || panel.localData.watches[0].last !== 499 || !watches.notifyExitSeen || watches.notifications.length) return
-          test.check(watches.status === "Checked 1 watches.", "automatic notification succeeds and drains queue")
+          test.check(watches.outcomes.updated === 1 && watches.outcomes.failed === 0 && watches.notificationError === "", "automatic notification succeeds and drains queue")
           test.check(panel.localData.watches[0].previous === 999 && panel.localData.watches[0].checkedAt > 0, "watch detail change and check time retained")
           panel.localData = Object.assign({}, panel.localData, {backgroundWatches:true})
           watches.notify.command = ["/missing-gaugedb-notification-command"]
@@ -232,7 +232,7 @@ Item {
           test.phase = 63; return
         }
         if (watches.notifications.length) return
-        test.check(watches.status.indexOf("unavailable") >= 0, "failed notification startup recovers")
+        test.check(watches.notificationError.indexOf("unavailable") >= 0, "failed notification startup recovers")
         panel.localData = Object.assign({}, panel.localData, {backgroundWatches:false})
         test.check(!watches.poll.running, "background opt-out stops polling")
         panel.setStartView("saved")
