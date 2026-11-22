@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0
 
 - Set a target price for a local watch and get one alert when a newer saved price reaches it.
 - Filter loaded regional deals to games on your public Steam wishlist.

@@ -5,6 +5,9 @@
 Search Steam games, browse regional deals, save favourites and compare two games
 from an Omarchy bar panel. Built for **Omarchy Quattro / Omarchy 4** and Quickshell.
 
+**Version 0.5.0** adds target-price watches, a wishlist filter for regional deals,
+and direct Steam store links in search. See the [0.5.0 release notes](CHANGELOG.md#050).
+
 **Version 0.4.4** includes local price watches, public wishlist import, saved wishlist
 names, and in-panel price history. Requests and local state reads are bounded
 before shell delivery. The exact published marketplace snapshot is
