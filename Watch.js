@@ -1,4 +1,13 @@
 // Local watches only; prices never cross countries or currencies.
+function targetAmount(input) {
+  var parts = /^(\d{1,8})(?:[.,](\d{1,2}))?$/.exec(input.trim());
+  if (!parts) return null;
+  var minor = Number(parts[1]) * 100 + Number(((parts[2] || "") + "00").slice(0, 2));
+  return minor <= 2147483647 ? minor : null;
+}
+function targetInput(amount) {
+  return (amount / 100).toFixed(2);
+}
 function quote(game, country, now) {
   var p = game && game.price;
   var at = p && p.observation && Date.parse(p.observation.at);
@@ -14,8 +23,17 @@ function update(watch, game, now) {
   var p = quote(game, watch.country, now);
   if (!p || p.currency !== watch.currency) return { watch: Object.assign({}, watch, {checkedAt:now}), notify: false, outcome: "unavailable" };
   if (p.at <= watch.observedAt) return {watch:Object.assign({}, watch, {checkedAt:now}), notify:false, outcome:"unchanged"};
-  return { watch: { id: watch.id, name: watch.name, country: watch.country, currency: watch.currency,
-    baseline: watch.baseline, last: p.amount, observedAt: p.at, checkedAt:now, previous:p.amount !== watch.last ? watch.last : (watch.previous === undefined ? watch.last : watch.previous) }, outcome: p.amount === watch.last ? "unchanged" : "updated", notify: p.amount < watch.last && p.amount < watch.baseline };
+  var changed = p.amount !== watch.last;
+  var next = Object.assign({}, watch, {
+    last: p.amount, observedAt: p.at, checkedAt: now,
+    previous: changed || watch.previous === undefined ? watch.last : watch.previous,
+  });
+  var notify = p.amount < watch.last && p.amount < watch.baseline;
+  if (watch.target !== undefined) {
+    notify = !watch.targetReached && p.amount <= watch.target;
+    next.targetReached = watch.targetReached || notify;
+  }
+  return { watch: next, outcome: changed ? "updated" : "unchanged", notify: notify };
 }
 function notificationText(value) {
   return String(value).replace(/[\x00-\x1f\x7f]/g, " ").slice(0, 500).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

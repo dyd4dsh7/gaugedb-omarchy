@@ -11,13 +11,14 @@ before shell delivery. The exact published marketplace snapshot is
 `176ba87dd1867451331a77ef21fe3e899d030a08` ([verification #12568](https://github.com/omacom/omarchy-plugin-marketplace/issues/12568)).
 Checks and their limits are documented in [VALIDATION.md](VALIDATION.md).
 
-**Version 0.4.5 is prepared for review and remains unreleased.** It pauses watch
+**Version 0.4.5** pauses watch
 and wishlist batches for 60 seconds after rate limiting, then resumes unfinished
 items. Watch results separate updated, unchanged, unavailable and failed checks.
 Wishlist names keep loading while browsing within the panel; closing it or
 changing country cancels that work. Queued items survive helper shutdown, and
 notification delivery errors remain visible until a successful delivery.
-See the [0.4.5 release notes](CHANGELOG.md#045--unreleased).
+See the [0.4.5 release notes](CHANGELOG.md#045) and
+[marketplace verification request](https://github.com/omacom/omarchy-plugin-marketplace/issues/13905).
 
 ## Features
 
@@ -87,8 +88,11 @@ choose Games, Saved or Deals as the starting view for a new panel session.
 | Ctrl+V / Shift+Insert / middle-click | Paste through the bounded helper |
 
 
-Enter a title and press Enter or Search. Select a result for details. Deals uses
-the selected country; changing country clears previous regional results.
+Enter a title and press Enter or Search. Select a result for details, or paste
+a Steam store game link into search to open the exact game. Deals uses the
+selected country; changing country clears previous regional results. Use
+**On my wishlist** to filter the loaded deals to games from your imported public
+wishlist.
 **Store** opens the country dropdown with search inside it. Filter by country name
 or code; Down enters the list, Up from its first row returns to search, Enter
 selects, and Escape or an outside click dismisses it. Filtering alone does not
@@ -211,16 +215,19 @@ The SteamID64 itself
 is not persisted; private/unavailable responses preserve existing saved games.
 
 Local watches are limited to ten exact game/country/currency combinations. Start a
-watch from a fresh regional detail price. Background checks are off by default;
-when enabled, they run every 30 minutes with sequential bounded requests. Newer
-lower observations trigger a generic desktop notification. Watched names, prices,
+watch from a fresh regional detail price. Choose **Watch for a lower saved price**
+or **Set target price**. A target is reached once, on the first newer saved price
+at or below the amount in that watch's currency. Edit the target to watch for a
+different price or switch the watch back to price drops. Background checks and
+desktop notifications are off by default. When enabled, checks run every 30
+minutes with sequential bounded requests. Watched names, prices,
 country and game IDs are not included in notification arguments; request inputs
 travel over stdin rather than process arguments. Open the panel for game details. Stale, foreign-country and
 changed-currency prices do not trigger it. Use **Saved → Watches** to review each game's previous/latest price, starting
 price, observation date and last successful price check, open it in its matching
 country, or remove the watch. **Check watches now** also works with background
-checks off and reports completion/failure. Last checked updates only for a valid
-same-country/currency quote; old observations never overwrite newer prices.
+checks off and records reached targets in the list. Old observations never
+overwrite newer prices.
 Disable background watches to stop polling. Removing the plugin ends its running services.
 
 The native chart reads the deployed public price-history endpoint.

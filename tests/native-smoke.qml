@@ -145,7 +145,15 @@ Item {
           test.phase = 85; return
         }
         test.check(panel.games.length === (test.phase === 83 ? 2 : 1) && panel.coverage === "Controlled MCP", "native MCP result decoded")
-        if (test.phase === 80) panel.call("get_game", {id:"steam:620",country:"NZ"})
+        if (test.phase === 80) {
+          let search = test.find(panel, "gaugedb-game-search", [])
+          test.check(search, "native game search field exists")
+          search.text = "https://store.steampowered.com/app/620/Portal_2/?utm_source=fixture"
+          search.accepted()
+          test.check(panel.mode === "details" && panel.selectedId === "steam:620", "Steam link opens exact game")
+          let params = JSON.parse(panel.requestBody).params
+          test.check(params.name === "get_game" && params.arguments.id === "steam:620" && !params.arguments.query, "Steam lookup sends only app ID and store")
+        }
         else if (test.phase === 81) panel.call("find_deals", {country:"NZ"})
         else if (test.phase === 82) panel.call("compare_games", {ids:["steam:620","steam:730"],country:"NZ"})
         else if (test.phase === 83) panel.call("search_games", {query:"limited"})
@@ -206,16 +214,33 @@ Item {
           test.check(panel.localData.wishlist[0].name === "Counter-Strike 2", "wishlist resolves names in native service")
           test.check(panel.isFavourite("steam:620"), "wishlist preserves favourites")
           panel.countryCode = "NZ"
+          panel.controller.show()
+          panel.mode = "deals"
+          panel.games = [{id:"steam:620",name:"Portal 2"}, {id:"steam:730",name:"Counter-Strike 2"}]
+          let filter = test.find(panel, "gaugedb-wishlist-deals-filter", [])
+          test.check(filter && filter.visible, "native wishlist deals filter exists")
+          filter.click()
+          test.check(filter.checked && panel.visibleGames.length === 1 && panel.visibleGames[0].id === "steam:730", "deals filter matches wishlist IDs")
+          filter.click()
+          test.check(!filter.checked && panel.visibleGames.length === 2 && !panel.pending, "deals filter clears without a request")
           panel.selectedId = "steam:620"
           panel.mode = "details"
-          panel.games = [{id:"steam:620",name:"Portal 2"}]
+          panel.games = [{id:"steam:620",name:"Portal 2",price:{status:"priced",requestedCountry:"NZ",actualStoreCountry:"NZ",currency:"NZD",finalMinor:999,observation:{at:new Date(Date.now()-60000).toISOString(),freshness:"fresh"}}}]
           history.process.command = ["printf", "%s", JSON.stringify({gameId:"steam:620",requestedCountry:"NZ",actualStoreCountry:"NZ",coverage:"Synthetic native test observations",points:[{at:new Date().toISOString(),finalMinor:499,currency:"NZD",timeBasis:"observed"}]})]
           panel.loadPriceHistory("steam:620")
           test.phase = 61; return
         }
         if (test.phase === 61) {
           if (history.busy || panel.priceHistoryData.points.length !== 1) return
-          panel.localData = Object.assign({}, panel.localData, {watches:[{id:"steam:620",name:"Portal 2",country:"NZ",currency:"NZD",baseline:999,last:999,observedAt:Date.now()-60000}]})
+          let target = test.find(panel, "gaugedb-watch-target", [])
+          test.check(target && target.visible, "native price target control exists")
+          target.click()
+          let targetPrice = test.find(panel, "gaugedb-watch-target-price", [])
+          let saveTarget = test.find(panel, "gaugedb-watch-target-save", [])
+          test.check(targetPrice && targetPrice.visible && saveTarget && saveTarget.visible, "native target editor opens")
+          targetPrice.text = "4.99"
+          saveTarget.click()
+          test.check(panel.localData.watches.length === 1 && panel.localData.watches[0].target === 499, "native target saves in store currency")
           watches.request.process.command = ["printf", "%s", JSON.stringify({jsonrpc:"2.0",id:1,result:{structuredContent:{coverage:"Synthetic test quote",games:[{id:"steam:620",name:"Portal 2",price:{status:"priced",requestedCountry:"NZ",actualStoreCountry:"NZ",currency:"NZD",finalMinor:499,observation:{at:new Date().toISOString(),freshness:"fresh"}}}]}}})]
           panel.localData = Object.assign({}, panel.localData, {backgroundWatches:true})
           watches.check()
@@ -225,6 +250,7 @@ Item {
           if (watches.request.busy || panel.localData.watches[0].last !== 499 || !watches.notifyExitSeen || watches.notifications.length) return
           test.check(watches.outcomes.updated === 1 && watches.outcomes.failed === 0 && watches.notificationError === "", "automatic notification succeeds and drains queue")
           test.check(panel.localData.watches[0].previous === 999 && panel.localData.watches[0].checkedAt > 0, "watch detail change and check time retained")
+          test.check(panel.localData.watches[0].targetReached, "native price watch reaches the target")
           panel.localData = Object.assign({}, panel.localData, {backgroundWatches:true})
           watches.notify.command = ["/missing-gaugedb-notification-command"]
           watches.notifications = ["Native test notification"]

@@ -14,11 +14,11 @@ const methods =
 if (!methods) throw new Error("Panel methods unavailable");
 const modelSource = readFileSync(new URL("Model.js", import.meta.url), "utf8");
 const Model = runInNewContext(
-  `${modelSource}\n({request, decode, gameId, presentationUrl, decodePresentation, compactObservation, endpoint})`,
+  `${modelSource}\n({request, decode, gameId, steamStoreGameId, presentationUrl, decodePresentation, compactObservation, endpoint})`,
 );
 const Store = runInNewContext(
   readFileSync(new URL("Store.js", import.meta.url), "utf8") +
-    "\n({empty, read, encode, toggle, remember, put, get, savedGames, mergeLoaded, wishlistName})",
+    "\n({empty, read, encode, toggle, remember, put, get, savedGames, mergeLoaded, wishlistName, wishlistDeals})",
 );
 const Countries = runInNewContext(
   readFileSync(new URL("Countries.js", import.meta.url), "utf8") +
@@ -35,6 +35,53 @@ const response = (id: number, game = "steam:620") =>
       },
     },
   });
+
+test("Steam store links open the exact regional game and never forward URL parameters", () => {
+  const { state, requests } = harness();
+  state.query.text = "  https://store.steampowered.com/app/620/Portal_2/?utm_source=test#details  ";
+  state.search();
+  expect(JSON.parse(requests[0].body).params).toEqual({
+    name: "get_game", arguments: { id: "steam:620", country: "NZ" },
+  });
+  requests[0].finish(200, response(JSON.parse(requests[0].body).id));
+  expect(state.games[0].id).toBe("steam:620");
+  state.back();
+  expect(state.mode).toBe("search");
+});
+
+test("unrecognized and malformed Steam links do not send a catalogue request", () => {
+  const { state, requests } = harness();
+  for (const text of [
+    "https://store.steampowered.com.evil.test/app/620",
+    "https://store.steampowered.com/bundle/620",
+    "https://store.steampowered.com/app/2147483648",
+    "https://store.steampowered.com/app/620junk",
+  ]) {
+    state.query.text = text;
+    state.search();
+    expect(state.message).toContain("Steam store link");
+  }
+  expect(requests).toHaveLength(0);
+});
+
+test("wishlist-only regional deals filter loaded results without another request", () => {
+  const { state, requests } = harness();
+  state.localData.wishlist = [{ id: "steam:730", name: "Counter-Strike 2" }];
+  state.deals();
+  const request = JSON.parse(requests[0].body);
+  const games = [{ id: "steam:620", name: "Portal 2" }, { id: "steam:730", name: "Counter-Strike 2" }];
+  requests[0].finish(200, JSON.stringify({
+    jsonrpc: "2.0", id: request.id,
+    result: { structuredContent: { games, coverage: "Saved observations" } },
+  }));
+  state.wishlistDealsOnly = true;
+  expect(state.visibleGames).toEqual([games[1]]);
+  state.localData.wishlist = [];
+  expect(state.visibleGames).toEqual([]);
+  state.wishlistDealsOnly = false;
+  expect(state.visibleGames).toEqual(games);
+  expect(requests).toHaveLength(1);
+});
 
 function harness(failMethod = "") {
   const later: (() => void)[] = [];
@@ -115,6 +162,8 @@ function harness(failMethod = "") {
     artworkQueue: [],
     presentation: {} as Record<string, { image: string; detail: string }>,
     games: [] as { id: string; name?: string }[],
+    wishlistDealsOnly: false,
+    visibleGames: [] as { id: string; name?: string }[],
     coverage: "",
     message: "",
     canRetry: false,
@@ -144,6 +193,8 @@ function harness(failMethod = "") {
     controller: { hide() {} },
   };
   state.root = state;
+  const visibleGames = qml.match(/readonly property var visibleGames: ([^\n]+\n[^\n]+)/)?.[1];
+  Object.defineProperty(state, "visibleGames", { get: () => runInNewContext(visibleGames!, state) });
   runInNewContext(methods, state);
   return {
     state: state as typeof state &
@@ -154,6 +205,7 @@ function harness(failMethod = "") {
         | "applyStartView"
         | "dismiss"
         | "search"
+        | "deals"
         | "cancel"
         | "details"
         | "back"

@@ -23,6 +23,16 @@ const game = {
   },
 };
 describe("Omarchy local saved data", () => {
+  test("target and legacy watches round-trip without resetting reached targets", () => {
+    const legacy = { id: "steam:620", name: "Portal 2", country: "NZ", currency: "NZD", baseline: 999, last: 499, observedAt: Date.now() };
+    const target = { ...legacy, id: "steam:730", target: 500, targetReached: true };
+    const data = { ...Store.empty(), watches: [legacy, target] };
+    const restored = Store.read(Store.encode(data), Model, Countries);
+    expect(restored.watches[0].target).toBeUndefined();
+    expect(restored.watches[1]).toMatchObject(target);
+    expect(() => Store.encode({ ...data, watches: [{ ...target, target: -1 }] })).toThrow();
+    expect(() => Store.encode({ ...data, watches: [{ ...target, targetReached: "false" }] })).toThrow();
+  });
   test("favourites and recent identities survive serialization without duplicate entries", () => {
     let data = Store.toggle(Store.empty(), game);
     data = Store.remember(Store.remember(data, game), game);

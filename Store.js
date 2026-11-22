@@ -28,17 +28,28 @@ function identities(items, limit) {
     throw new Error("Duplicate saved game.");
   return result;
 }
+function validWatchPrice(value) {
+  return typeof value === "number" && isFinite(value) && value >= 0
+    && Math.floor(value) === value && value <= 2147483647;
+}
 function watches(items, registry) {
   if (!Array.isArray(items) || items.length > 10) throw new Error("Invalid price watches.");
   var result = items.map(function (value) {
     var game = identity(value);
     if (!/^[A-Z]{2}$/.test(value.country || "") || (registry && !registry.supported(value.country))
       || !/^[A-Z]{3}$/.test(value.currency || "")
-      || [value.baseline, value.last].some(function(n) { return typeof n !== "number" || !isFinite(n) || n < 0 || Math.floor(n) !== n || n > 2147483647; })
+      || !validWatchPrice(value.baseline) || !validWatchPrice(value.last)
       || typeof value.observedAt !== "number" || !isFinite(value.observedAt) || value.observedAt <= 0 || value.observedAt > Date.now() + 60000)
       throw new Error("Invalid price watch.");
-    if ((value.previous !== undefined && (typeof value.previous !== "number" || !isFinite(value.previous) || value.previous < 0 || value.previous > 2147483647 || Math.floor(value.previous) !== value.previous)) || (value.checkedAt !== undefined && (typeof value.checkedAt !== "number" || !isFinite(value.checkedAt) || value.checkedAt < 0 || value.checkedAt > Date.now() + 60000))) throw new Error("Invalid watch check.");
-    return { id: game.id, name: game.name, country: value.country, currency: value.currency, baseline: value.baseline, last: value.last, observedAt: value.observedAt, previous: value.previous === undefined ? value.last : value.previous, checkedAt: value.checkedAt || 0 };
+    if ((value.previous !== undefined && !validWatchPrice(value.previous)) || (value.checkedAt !== undefined && (typeof value.checkedAt !== "number" || !isFinite(value.checkedAt) || value.checkedAt < 0 || value.checkedAt > Date.now() + 60000))) throw new Error("Invalid watch check.");
+    var watch = { id: game.id, name: game.name, country: value.country, currency: value.currency, baseline: value.baseline, last: value.last, observedAt: value.observedAt, previous: value.previous === undefined ? value.last : value.previous, checkedAt: value.checkedAt || 0 };
+    if (value.target !== undefined) {
+      if (!validWatchPrice(value.target) || typeof value.targetReached !== "boolean")
+        throw new Error("Invalid watch target.");
+      watch.target = value.target;
+      watch.targetReached = value.targetReached;
+    }
+    return watch;
   });
   if (result.some(function(value,i) { return result.slice(0,i).some(function(old) { return value.id === old.id && value.country === old.country; }); })) throw new Error("Duplicate price watch.");
   return result;
@@ -192,6 +203,11 @@ function get(data, body, now) {
     });
   });
   return { result: result, savedAt: entry.savedAt };
+}
+function wishlistDeals(games, wishlist) {
+  return games.filter(function(game) {
+    return wishlist.some(function(item) { return item.id === game.id; });
+  });
 }
 function savedGames(data, section) {
   var items = section === "wishlist" ? (data.wishlist || []) : section === "recent" ? data.recent : data.favourites;

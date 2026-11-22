@@ -21,6 +21,9 @@ Ui.Panel {
   property var anchorItem: null
   property var hostWidget: null
   property var games: []
+  property bool wishlistDealsOnly: false
+  readonly property var visibleGames: mode === "deals" && wishlistDealsOnly
+    ? Store.wishlistDeals(games, localData.wishlist) : games
   property string message: "Find a game by title."
   property string coverage: ""
   property bool busy: false
@@ -72,19 +75,49 @@ Ui.Panel {
     historyMessage = "Loading saved price observations…"
     historyRequest.request(["history", id.slice(6), countryCode])
   }
+  function watchForGame(id) {
+    return localData.watches.find(function(item) { return item.id === id && item.country === root.countryCode })
+  }
+  function startWatch(game, target) {
+    if (!storageReady) return "Saved state is still loading."
+    let quote = Watch.quote(game, countryCode, Date.now())
+    if (!quote) return "A fresh price from this store is needed to start a watch."
+    if (target === undefined && quote.amount === 0) return "This saved price is already free."
+    if (localData.watches.length >= 10) return "Remove a watch before adding another (10 maximum)."
+    let watch = {id: game.id, name: game.name, country: countryCode, currency: quote.currency, baseline: quote.amount, last: quote.amount, observedAt: quote.at}
+    if (target !== undefined) {
+      watch.target = target
+      watch.targetReached = false
+    }
+    localData = Object.assign({}, localData, {watches: localData.watches.concat([watch])})
+    persist()
+    return ""
+  }
   function toggleWatch(game) {
     if (!storageReady) return
-    let watches = localData.watches || []
-    let old = watches.find(function(item) { return item.id === game.id && item.country === root.countryCode })
-    if (old) watches = watches.filter(function(item) { return item !== old })
-    else {
-      let quote = Watch.quote(game, countryCode, Date.now())
-      if (!quote) { message = "A fresh price from this exact country is needed to start a watch."; return }
-      if (quote.amount === 0) { message = "This saved price is already free; there is no lower price to watch."; return }
-      if (watches.length >= 10) { message = "Remove a watch before adding another (10 maximum)."; return }
-      watches = watches.concat([{id: game.id, name: game.name, country: countryCode, currency: quote.currency, baseline: quote.amount, last: quote.amount, observedAt: quote.at}])
+    if (watchForGame(game.id)) removeWatch(game.id, countryCode)
+    else message = startWatch(game, undefined)
+  }
+  function saveWatchTarget(game, input) {
+    if (!storageReady) return "Saved state is still loading."
+    let target = Watch.targetAmount(input)
+    if (target === null) return "Enter a price with at most two decimal places."
+    let watch = watchForGame(game.id)
+    if (!watch) return startWatch(game, target)
+    if (watch.target !== target) changeWatchTarget(watch, target)
+    return ""
+  }
+  function changeWatchTarget(watch, target) {
+    if (!watch || !storageReady) return
+    let next = Object.assign({}, watch)
+    if (target === undefined) {
+      delete next.target
+      delete next.targetReached
+    } else {
+      next.target = target
+      next.targetReached = false
     }
-    localData = Object.assign({}, localData, {watches: watches})
+    localData = Object.assign({}, localData, {watches: localData.watches.map(function(item) { return item === watch ? next : item })})
     persist()
   }
   function removeWatch(id, country) {
@@ -236,7 +269,22 @@ Ui.Panel {
     artworkRequest.cancel()
     Qt.callLater(function() { root.fetchPresentation() })
   }
-  function search() { startApplied = true; mode = "search"; selectedId = ""; call("search_games", { query: query.text }) }
+  function search() {
+    startApplied = true
+    mode = "search"
+    selectedId = ""
+    let input = query.text.trim()
+    let gameId = Model.steamStoreGameId(input)
+    if (gameId) {
+      details(gameId)
+      return
+    }
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(input)) {
+      message = "Paste a Steam store link for a game, or enter its title."
+      return
+    }
+    call("search_games", { query: input })
+  }
   function deals() { startApplied = true; mode = "deals"; selectedId = ""; call("find_deals", { country: countryCode }) }
   function details(id) {
     startApplied = true
@@ -866,10 +914,11 @@ Ui.Panel {
             spacing: Style.space(8)
             Field {
               id: query
+              objectName: "gaugedb-game-search"
               Layout.fillWidth: true
-              placeholderText: "Search games"
-              maximumLength: 100
-              Accessible.name: "Game title"
+              placeholderText: "Game title or Steam link"
+              maximumLength: 2048
+              Accessible.name: "Game title or Steam store link"
               onAccepted: root.search()
               onTextEdited: root.queryChanged()
               Keys.onDownPressed: { let first = results.itemAt(0) as GameResult; if (first) first.focusResult() }
@@ -890,13 +939,27 @@ Ui.Panel {
           }
           RowLayout {
             width: parent.width
-            visible: root.games.length > 0 && !root.showingDetails
+            visible: (root.mode === "deals" || root.visibleGames.length > 0) && !root.showingDetails
             Label {
               Layout.fillWidth: true
               text: root.mode === "deals" ? "Regional deals" : root.mode === "saved" ? (root.savedSection === "watches" ? "Price watches" : root.savedSection === "wishlist" ? "Public wishlist" : root.savedSection === "recent" ? "Recent games" : "Favourites") : "Search results"
               font.pixelSize: Math.max(12, root.fontRoles.caption)
             }
-            Label { text: String(root.games.length); font.pixelSize: Math.max(12, root.fontRoles.caption) }
+            Label { text: String(root.visibleGames.length); font.pixelSize: Math.max(12, root.fontRoles.caption) }
+          }
+          Action {
+            objectName: "gaugedb-wishlist-deals-filter"
+            visible: root.mode === "deals"
+            text: "On my wishlist"
+            checkable: true
+            checked: root.wishlistDealsOnly
+            onToggled: root.wishlistDealsOnly = checked
+          }
+          Label {
+            width: parent.width
+            visible: root.mode === "deals" && root.wishlistDealsOnly && !root.busy && !root.visibleGames.length
+            text: root.localData.wishlist.length ? "None of the loaded deals are on your wishlist."
+              : "Import a public wishlist in Options to filter deals."
           }
           Label { width: parent.width; text: root.message; visible: text !== ""; Accessible.role: Accessible.StaticText }
           Action { text: "Retry"; visible: !root.busy && root.canRetry; onClicked: root.retry() }
@@ -917,6 +980,12 @@ Ui.Panel {
                 Label { width: parent.width; text: modelData.name + " · " + modelData.country }
                 Label { width: parent.width; text: "Latest " + History.amount(modelData.last, modelData.currency) + " · Started " + History.amount(modelData.baseline, modelData.currency) + (modelData.previous !== undefined && modelData.previous !== modelData.last ? "\nPrevious " + History.amount(modelData.previous, modelData.currency) + (modelData.last < modelData.previous ? " · Price fell" : " · Price rose") : "") }
                 Label { width: parent.width; text: "Observed " + new Date(modelData.observedAt).toISOString() + (modelData.checkedAt ? "\nLast checked " + new Date(modelData.checkedAt).toISOString() : "\nNot checked yet"); font.pixelSize: Math.max(12, root.fontRoles.caption) }
+                Label {
+                  width: parent.width
+                  visible: modelData.target !== undefined
+                  text: visible ? "Target " + Watch.targetInput(modelData.target) + " " + modelData.currency
+                    + (modelData.targetReached ? " · Reached" : "") : ""
+                }
                 Row {
                   width: parent.width; spacing: Style.space(8)
                   Action { text: "Open game"; onClicked: root.openWatch(modelData.id, modelData.country) }
@@ -940,12 +1009,13 @@ Ui.Panel {
           Repeater {
             id: results
             objectName: "gaugedb-results"
-            model: root.games
+            model: root.visibleGames
             delegate: GameResult {
               id: result
               focusTarget: resultButton
               readonly property var priceData: Model.priceView(modelData)
               readonly property var presentationData: root.presentation[modelData.id] || ({image: "", detail: ""})
+              readonly property var localWatch: root.watchForGame(modelData.id)
               Layout.fillWidth: true
               Layout.alignment: Qt.AlignTop
               Layout.preferredWidth: gameGrid.columns === 2 ? (content.width - gameGrid.columnSpacing) / 2 : content.width
@@ -1132,9 +1202,71 @@ Ui.Panel {
                 PriceHistory { width: parent.width; visible: root.mode === "details" && root.showPriceHistory && root.historyMessage === ""; dataset: root.priceHistoryData; foreground: root.foreground; fontFamily: root.fontFamily; onRevealRequested: function(item) { root.reveal(item) } }
                 Action {
                   width: parent.width
-                  text: (root.localData.watches || []).some(function(item) { return item.id === result.modelData.id && item.country === root.countryCode }) ? "Remove local price watch" : "Watch for a lower saved price"
+                  text: result.localWatch ? "Remove local price watch" : "Watch for a lower saved price"
                   enabled: root.storageReady
-                  onClicked: root.toggleWatch(result.modelData)
+                  onClicked: {
+                    targetEditor.visible = false
+                    root.toggleWatch(result.modelData)
+                  }
+                }
+                Action {
+                  id: targetButton
+                  objectName: "gaugedb-watch-target"
+                  width: parent.width
+                  text: targetEditor.visible ? "Cancel target edit"
+                    : result.localWatch && result.localWatch.target !== undefined ? "Edit target price" : "Set target price"
+                  enabled: root.storageReady
+                  onClicked: {
+                    targetEditor.visible = !targetEditor.visible
+                    if (!targetEditor.visible) return
+                    targetEditor.error = ""
+                    targetField.text = result.localWatch && result.localWatch.target !== undefined
+                      ? Watch.targetInput(result.localWatch.target) : ""
+                    targetField.forceActiveFocus()
+                  }
+                }
+                ColumnLayout {
+                  id: targetEditor
+                  width: parent.width
+                  visible: false
+                  spacing: Style.space(8)
+                  property string error: ""
+
+                  function save() {
+                    error = root.saveWatchTarget(result.modelData, targetField.text)
+                    if (!error) { targetButton.forceActiveFocus(); visible = false }
+                  }
+
+                  Field {
+                    id: targetField
+                    objectName: "gaugedb-watch-target-price"
+                    Layout.fillWidth: true
+                    maximumLength: 11
+                    inputMethodHints: Qt.ImhFormattedNumbersOnly
+                    readonly property string currency: result.localWatch ? result.localWatch.currency
+                      : result.modelData.price ? (result.modelData.price.currency || "") : ""
+                    placeholderText: currency ? "Target price (" + currency + ")" : "Target price"
+                    Accessible.name: placeholderText
+                    onAccepted: targetEditor.save()
+                    escapeAction: function() { targetButton.forceActiveFocus(); targetEditor.visible = false }
+                  }
+                  Label { Layout.fillWidth: true; visible: targetEditor.error !== ""; text: targetEditor.error }
+                  Action {
+                    Layout.fillWidth: true
+                    objectName: "gaugedb-watch-target-save"
+                    text: "Save target"
+                    onClicked: targetEditor.save()
+                  }
+                  Action {
+                    Layout.fillWidth: true
+                    visible: !!result.localWatch && result.localWatch.target !== undefined
+                    text: "Switch to price drops"
+                    onClicked: {
+                      root.changeWatchTarget(result.localWatch, undefined)
+                      targetButton.forceActiveFocus()
+                      targetEditor.visible = false
+                    }
+                  }
                 }
                 Action {
                   width: parent.width
@@ -1155,7 +1287,7 @@ Ui.Panel {
           }
           Label {
             width: parent.width
-            visible: root.games.length > 0
+            visible: root.visibleGames.length > 0
             text: root.mode === "saved" ? "Stored on this device. Open a game to load its summary." : (root.mode === "deals" ? "Partial coverage · latest 512 saved price observations.\n" : "")
               + "Saved observations · check Steam before buying."
             font.pixelSize: Math.max(12, root.fontRoles.caption)

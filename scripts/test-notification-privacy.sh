@@ -22,7 +22,7 @@ if ! grep -q 'PRIVACY_PASS:' "$test_root/result.log" || grep -q 'PRIVACY_FAIL:' 
 python3 - "$test_root/argv.json" <<'PY'
 import json, sys
 args=json.load(open(sys.argv[1]))
-assert args == ['--app-name=GaugeDB','GaugeDB price watch','A watched price fell. Open GaugeDB to review saved prices; check Steam before buying.']
+assert args == ['--app-name=GaugeDB','GaugeDB price watch','A watched price met your alert condition. Open GaugeDB to review saved prices; check Steam before buying.']
 assert not any(secret in ' '.join(args) for secret in ['PRIVATE WATCH NAME','620','499','NZD','76561197960265729'])
 print('NOTIFICATION_PRIVACY_PASS: actual helper argv contains no watched identifiers or prices')
 PY

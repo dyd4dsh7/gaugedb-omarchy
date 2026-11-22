@@ -27,7 +27,7 @@ QtObject {
     }
   }
   property Process notify: Process {
-    command: ["notify-send", "--app-name=GaugeDB", "GaugeDB price watch", "A watched price fell. Open GaugeDB to review saved prices; check Steam before buying."]
+    command: ["notify-send", "--app-name=GaugeDB", "GaugeDB price watch", "A watched price met your alert condition. Open GaugeDB to review saved prices; check Steam before buying."]
     onExited: function(code, status) {
       root.notifyExitSeen = true
       root.notificationError = code !== 0 || status !== 0 ? "Desktop notification could not be sent." : ""

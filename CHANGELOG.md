@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.4.5 — Unreleased
+## Unreleased
+
+- Set a target price for a local watch and get one alert when a newer saved price reaches it.
+- Filter loaded regional deals to games on your public Steam wishlist.
+- Paste a Steam store app link into search to open that game directly.
+
+## 0.4.5
 
 - Pause watch and wishlist-name batches together for 60 seconds after HTTP 429, then resume unfinished items without counting rate-limited requests as failures.
 - Report updated, unchanged, unavailable and failed watch checks separately. Record the last check time while retaining saved prices when a request fails or returns no usable quote.
@@ -8,10 +14,8 @@
 - Retain queued work while a cancelled helper process shuts down, so replacement batches do not lose items.
 - Keep notification delivery errors visible when later watch checks finish; clear them after a successful delivery.
 
-The implementation is committed at `11464fe6f31876bd3cfe6eba8f98c228d4883aa3`.
-Version 0.4.5 is prepared locally for review; no tag, release or marketplace update
-has been published. Validation and remaining release gates are recorded in
-[VALIDATION.md](VALIDATION.md) and [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
+[GitHub release and validation](https://github.com/dyd4dsh7/gaugedb-omarchy/releases/tag/v0.4.5)
+· [Marketplace verification request](https://github.com/omacom/omarchy-plugin-marketplace/issues/13905)
 
 ## 0.4.0
 

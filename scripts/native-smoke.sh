@@ -90,7 +90,7 @@ PYUNICODE
     python3 - "$test_root/notification.json" <<'PYPRIVACY'
 import json, sys
 args=json.load(open(sys.argv[1]))
-assert args == ["--app-name=GaugeDB", "GaugeDB price watch", "A watched price fell. Open GaugeDB to review saved prices; check Steam before buying."]
+assert args == ["--app-name=GaugeDB", "GaugeDB price watch", "A watched price met your alert condition. Open GaugeDB to review saved prices; check Steam before buying."]
 assert all(secret not in " ".join(args) for secret in ["Portal", "620", "499", "NZD", "76561197960265729"])
 print("NOTIFICATION_PRIVACY_PASS: captured argv contains no watch details")
 PYPRIVACY

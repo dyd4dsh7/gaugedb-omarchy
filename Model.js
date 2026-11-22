@@ -8,6 +8,12 @@ function gameId(id) {
   );
 }
 
+function steamStoreGameId(input) {
+  var match = /^https?:\/\/store\.steampowered\.com\/app\/([1-9]\d{0,9})(?:\/[^\s?#]*)?(?:\?[^\s#]*)?(?:#[^\s]*)?$/i.exec(input);
+  var id = match ? "steam:" + match[1] : "";
+  return gameId(id) ? id : "";
+}
+
 function request(name, args, id) {
   if (name === "search_games") {
     if (typeof args.query !== "string" || !args.query.trim() || args.query.trim().length > 100)
